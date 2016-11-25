@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<conf_file>	
+	<available_sensor>
+		<kinect> 0 </kinect>
+		<zenith> 0 </zenith>
+		<UPMBand> 0 </UPMBand>
+		<ambientSensor> 1 </ambientSensor>
+	</available_sensor>
+	
+	<ambientSensor_position>
+		<entrance>a51</entrance>
+		<toilet>a53</toilet>
+		<bedroom>a56</bedroom>
+	</ambientSensor_position>
+	
+</conf_file>
+
