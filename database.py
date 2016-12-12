@@ -1,6 +1,7 @@
 from pymongo import MongoClient as Connection
 import numpy as np
-
+from datetime import datetime
+from multiprocessing.dummy import Pool as threadPool
 
 
 def connect_db(name_db):
@@ -13,7 +14,10 @@ def connect_db(name_db):
 
 def read_kinect_joints_from_db(kinect_collection,time_interval):
 
-    #TODO: retrieve the data only in the selected time interval
+    begin_period = datetime.strptime(time_interval[0], '%Y-%m-%d %H:%M:%S')
+    end_period = datetime.strptime(time_interval[1], '%Y-%m-%d %H:%M:%S')
+
+
     #frame_with_joints = kinect.find({"BodyFrame.isTracked": True})
     frame_with_joints = kinect_collection.find({})
 
@@ -22,28 +26,31 @@ def read_kinect_joints_from_db(kinect_collection,time_interval):
 
     for n_frame,f in enumerate(frame_with_joints):
 
-        for n_id,body_frame in enumerate(f['BodyFrame']):
+        # takes only data within the selected time interval
+        if begin_period <= f['_id'] <= end_period:
 
-            if body_frame['isTracked']:
+            for n_id,body_frame in enumerate(f['BodyFrame']):
 
-                frame_body_joints = np.zeros((len(body_frame['skeleton']['rawGray'])+1,3),dtype='S30')
+                if body_frame['isTracked']:
+
+                    frame_body_joints = np.zeros((len(body_frame['skeleton']['rawGray'])+1,3),dtype='S30')
 
 
-                #frameID
-                frame_body_joints[0,0] = n_frame
-                #time
-                frame_body_joints[0,1] = f['_id']
-                #trackID
-                frame_body_joints[0,2] = n_id
+                    #frameID
+                    frame_body_joints[0,0] = n_frame
+                    #time
+                    frame_body_joints[0,1] = f['_id']
+                    #trackID
+                    frame_body_joints[0,2] = n_id
 
-                #joints
-                i = 1
-                for j in body_frame['skeleton']['rawGray']:
-                    frame_body_joints[i,0] = j['x']
-                    frame_body_joints[i,1] = j['y']
-                    frame_body_joints[i,2] = j['z']
-                    i+=1
-                joint_points.append(frame_body_joints)
+                    #joints
+                    i = 1
+                    for j in body_frame['skeleton']['rawGray']:
+                        frame_body_joints[i,0] = j['x']
+                        frame_body_joints[i,1] = j['y']
+                        frame_body_joints[i,2] = j['z']
+                        i+=1
+                    joint_points.append(frame_body_joints)
 
     #print joint_points[0]
     return joint_points
