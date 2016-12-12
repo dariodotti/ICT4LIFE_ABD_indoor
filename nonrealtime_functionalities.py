@@ -13,7 +13,7 @@ import conf_file
 
 def daily_motion_training(db,avaliable_sensor):
 
-    time_interval = ['12:12:12','13:13:13']
+    time_interval = ['2016-12-07 13:00:00', '2016-12-07 14:00:00']
 
     if avaliable_sensor['kinect']:
 
@@ -49,7 +49,8 @@ def daily_motion_training(db,avaliable_sensor):
 
 def daily_motion_test(db,avaliable_sensor):
 
-    time_interval = ['12:12:12','13:13:13']
+    time_interval = ['2016-12-07 13:00:00', '2016-12-07 14:00:00']
+
     if avaliable_sensor['kinect']:
 
         ##get data from database
@@ -82,7 +83,7 @@ def daily_motion_test(db,avaliable_sensor):
 def night_motion(db,avaliable_sensor):
 
     ##get data in the selected time interval from database
-    time_interval = ['12:12:12','13:13:13']
+    time_interval = ['2016-12-07 13:00:00', '2016-12-07 14:00:00']
 
     if avaliable_sensor['ambientSensor']:
         ambient_sensor_data = database.read_ambient_sensor_from_db(db.Binary,time_interval)
@@ -96,7 +97,7 @@ def night_motion(db,avaliable_sensor):
 def disorientation(db,avaliable_sensor):
 
     ##get data in the selected time interval from database
-    time_interval = ['12:12:12','13:13:13']
+    time_interval = ['2016-12-07 13:00:00', '2016-12-07 14:00:00']
 
     if avaliable_sensor['kinect']:
         kinect_joints = database.read_kinect_joints_from_db(db.Kinect,time_interval)
