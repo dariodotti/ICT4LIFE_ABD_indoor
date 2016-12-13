@@ -3,13 +3,18 @@ from sklearn import svm
 from sklearn.cluster import KMeans,MeanShift
 
 
+import database
+
 __logistic = LogisticRegression()
 __my_svm = svm.SVC()
 
 
 
-def logistic_regression_train(data,labels):
+def logistic_regression_train(data,labels,save_model):
     __logistic.fit(data, labels)
+
+    if save_model:
+        database.save_classifier_model(__logistic,'')
 
 
 def logistic_regression_predict(test_data):
@@ -24,15 +29,17 @@ def svm_predict(test_data):
     return __my_svm.predict(test_data)
 
 
-def cluster_meanShift(data):
+def cluster_meanShift(data,save_model):
 
     my_meanShift = MeanShift(bandwidth=0.5,bin_seeding=True,n_jobs=-1)
 
     my_meanShift.fit(data)
-    cluster_prediction = my_meanShift.predict(data)
 
+    #cluster_prediction = my_meanShift.predict(data)
 
-    return cluster_prediction
+    if save_model:
+        database.save_classifier_model(my_meanShift,'')
+
 
 
 def cluster_kmeans(data,k):

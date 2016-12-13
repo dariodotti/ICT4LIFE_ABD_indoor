@@ -13,24 +13,28 @@ import conf_file
 
 def daily_motion_training(db,avaliable_sensor):
 
-    time_interval = ['2016-12-07 13:00:00', '2016-12-07 14:00:00']
+    time_interval = ['2016-12-07 13:06:00', '2016-12-07 13:08:00']
 
     if avaliable_sensor['kinect']:
 
         ##get data from database
-        kinect_joints = database.read_kinect_joints_from_db(db.Kinect,time_interval)
+        kinect_joints = database.read_kinect_joints_from_db(db.Kinect,time_interval,multithread=0)
 
         #extract features from kinect
-        global_traj_features = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints)
+        hours = 0
+        minutes = 0
+        seconds = 25
+        time_slice_size = [hours, minutes, seconds]
+        global_traj_features = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints,time_slice_size)
 
         #Get labels from clustering
-        labels_cluster = classifiers.cluster_kmeans(global_traj_features[1],k=3)
+        #labels_cluster = classifiers.cluster_kmeans(global_traj_features[1],k=3)
 
         #Train in supervised way a classifier with extracted features and labels
-        model = classifiers.logistic_regression_train(global_traj_features[1],labels_cluster)
+        #model = classifiers.logistic_regression_train(global_traj_features[1],labels_cluster)
 
         #Save model in database
-        database.save_classifier_model(model,filename='startPeriod_endPeriod')
+        #database.save_classifier_model(model,filename='startPeriod_endPeriod')
 
 
         ##visulaization daily motion
@@ -57,7 +61,11 @@ def daily_motion_test(db,avaliable_sensor):
         kinect_joints = database.read_kinect_joints_from_db(db.Kinect,time_interval)
 
         #extract features from kinect
-        global_traj_features = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints)
+        hours = 0
+        minutes = 0
+        seconds = 25
+        time_slice_size = [hours, minutes, seconds]
+        global_traj_features = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints,time_slice_size)
 
         #read model from database
         model= database.get_classifier_model(filename='startPeriod_endPeriod')
@@ -94,13 +102,39 @@ def night_motion(db,avaliable_sensor):
         upmBand_data = database.read_UPMBand_from_db(db.UPMBand,time_interval)
 
 
-def disorientation(db,avaliable_sensor):
+def disorientation_training(db,avaliable_sensor):
 
     ##get data in the selected time interval from database
-    time_interval = ['2016-12-07 13:00:00', '2016-12-07 14:00:00']
+    time_interval = ['2016-12-07 13:08:00', '2016-12-07 13:15:00']
 
     if avaliable_sensor['kinect']:
-        kinect_joints = database.read_kinect_joints_from_db(db.Kinect,time_interval)
+        ##get data from database
+        kinect_joints = database.read_kinect_joints_from_db(db.Kinect, time_interval, multithread=0)
+
+        # extract features from kinect
+        hours = 0
+        minutes = 0
+        seconds = 25
+        time_slice_size = [hours,minutes,seconds]
+        global_traj_features = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints,time_slice_size)
+
+        ## perform clustering
+        #classifiers.cluster_meanShift(global_traj_features[1],save_model=1)
+
+        ##retrieve model and get labels
+        #cluster_model = database.get_classifier_model('')
+
+        ##get labels from clustering
+        #labels_cluster = cluster_model.predict(global_traj_features[1])
+
+
+        ##Create bag of words with trajectories
+        #bow_vocabulary = kinect_global_trajectories.bow_traj(global_traj_features[1],cluster_model,labels_cluster)
+
+        #classifiers.logistic_regression_train(bow_vocabulary,labels_cluster,save_model=1)
+
+
+
 
     if avaliable_sensor['zenith']:
         zenith_data = database.read_zenith_from_db(db.Zenith,time_interval)
@@ -124,6 +158,7 @@ def visit_bathroom(db,avaliable_sensor):
         ambient_sensor.nr_visit_bathroom(ambient_sensor_data)
 
 
+
 def main_nonrealtime_functionalities():
 
     ##INPUT: path of configuration file for available sensor
@@ -141,15 +176,17 @@ def main_nonrealtime_functionalities():
     db = database.connect_db('my_first_db')
     
     #Functionalities for deliverable M12
-    daily_motion_training(db,avaliable_sensor)
 
-    night_motion(db,avaliable_sensor)
 
-    disorientation(db,avaliable_sensor)
+    #daily_motion_training(db,avaliable_sensor)
+
+    #night_motion(db,avaliable_sensor)
+
+    disorientation_training(db,avaliable_sensor)
 
     #apathy()
 
-    visit_bathroom(db,avaliable_sensor)
+    #visit_bathroom(db,avaliable_sensor)
 
 
 

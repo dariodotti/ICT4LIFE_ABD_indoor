@@ -12,10 +12,9 @@ kinect_max_distance=0
 
 
 
-def org_xml_data_timeIntervals(skeleton_data):
-
-    #get all time data from the list
-    content_time = map(lambda line: line[0,1].split(' ')[3] ,skeleton_data)
+def org_xml_data_timeIntervals(skeleton_data,timeInterval_slice):
+    #get all time data from the list dropping the decimal
+    content_time = map(lambda line: line[0,1].split(' ')[1].split('.')[0],skeleton_data)
 
     #date time library
 
@@ -25,9 +24,12 @@ def org_xml_data_timeIntervals(skeleton_data):
     tot_duration = (end_t-init_t)
 
     #decide the size of time slices
-    size_slice= tot_duration/12
-    hours, remainder = divmod(size_slice.seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
+    # size_slice= tot_duration/12
+    # hours, remainder = divmod(size_slice.seconds, 3600)
+    # minutes, seconds = divmod(remainder, 60)
+    hours = timeInterval_slice[0]
+    minutes = timeInterval_slice[1]
+    seconds = timeInterval_slice[2]
 
     my_time_slice = timedelta(hours=hours,minutes=minutes,seconds=seconds)
 
@@ -87,9 +89,10 @@ def occupancy_histograms_in_time_interval(my_room, list_poly, time_slices):
     my_data_temp_append = my_data_temp.append
 
     for i in xrange(0,len(time_slices)):
+
         ## Checking the start time of every time slice
-        if(len(time_slices[i])>1):
-            print 'start time: %s' %time_slices[i][0][0][1].split(' ')[3]
+        if len(time_slices[i])>1:
+            print 'start time: %s' %time_slices[i][0][0][1].split(' ')[1].split('.')[0]
         else:
             print 'no data in this time slice'
 
@@ -294,7 +297,7 @@ def measure_joints_accuracy(skeleton_data):
     return frames_where_joint_displacement_over_threshold
 
 
-def feature_extraction_video_traj(skeleton_data):
+def feature_extraction_video_traj(skeleton_data,timeInterval_slice):
 
     ##divide image into patches(polygons) and get the positions of each one
     my_room = np.zeros((414,512),dtype=np.uint8)
@@ -304,9 +307,9 @@ def feature_extraction_video_traj(skeleton_data):
     ##--------------Pre-Processing----------------##
 
     ##reliability method
-    measure_joints_accuracy(skeleton_data)
-
-    skeleton_data_in_time_slices = org_xml_data_timeIntervals(skeleton_data)
+    #measure_joints_accuracy(skeleton_data)
+    #print skeleton_data[0]
+    skeleton_data_in_time_slices = org_xml_data_timeIntervals(skeleton_data,timeInterval_slice)
 
 
 
@@ -324,4 +327,27 @@ def feature_extraction_video_traj(skeleton_data):
     return [occupancy_histograms,HOT_data]
 
     #cluster_prediction = my_exp.main_experiments(HOT_data)
+
+
+def bow_traj(data_matrix,cluster_model,labels_training):
+
+    key_labels = map(lambda x: x[0],labels_training)
+
+    hist = np.zeros((1, len(key_labels)))
+
+    # vocabulary=[]
+    for row in data_matrix:
+        #prediction from cluster to see which word is most similar to
+        similar_word = cluster_model.predict(row)
+        index = np.where(similar_word == key_labels)[0][0]
+
+        hist[0][index] +=1
+
+    hist = normalize(np.array(hist),norm='l1')
+    # if len(vocabulary)>0:
+    #     vocabulary = np.vstack((vocabulary,hist))
+    # else:
+    #     vocabulary = hist
+
+    return hist
 

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <conf_file>	
 	<available_sensor>
-		<kinect> 0 </kinect>
+		<kinect> 1 </kinect>
 		<zenith> 0 </zenith>
 		<UPMBand> 0 </UPMBand>
 		<ambientSensor> 1 </ambientSensor>
