@@ -18,7 +18,7 @@ def org_xml_data_timeIntervals(skeleton_data,timeInterval_slice):
 
     #date time library
 
-    init_t = datetime.strptime(content_time[0],'%H:%M:%S')
+    init_t = datetime.strptime(content_time[0],'%H:%M:%S') #+ ' ' + timeInterval_slice[3]
     end_t = datetime.strptime(content_time[len(content_time)-1],'%H:%M:%S')
     x = datetime.strptime('0:0:0','%H:%M:%S')
     tot_duration = (end_t-init_t)
@@ -39,11 +39,12 @@ def org_xml_data_timeIntervals(skeleton_data,timeInterval_slice):
     time_slices = []
     time_slices_append = time_slices.append
 
+    c = (end_t-my_time_slice)
     #get data in every timeslices
     while init_t < (end_t-my_time_slice):
         list_time_interval = []
         list_time_interval_append = list_time_interval.append
-        #print init_t
+
         for t in xrange(len(content_time)):
 
             if datetime.strptime(content_time[t],'%H:%M:%S')>= init_t and datetime.strptime(content_time[t],'%H:%M:%S') < init_t + my_time_slice:
@@ -129,8 +130,7 @@ def occupancy_histograms_in_time_interval(my_room, list_poly, time_slices):
 
     ## normalize the final matrix
     normalized_finalMatrix = np.array(normalize(np.array(my_data_temp),norm='l2'))
-    print 'final matrix size:'
-    print normalized_finalMatrix.shape
+    print 'OC final matrix size:' , normalized_finalMatrix.shape
 
     return normalized_finalMatrix
 
@@ -195,9 +195,16 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
 
     ## normalize the final matrix
     normalized_finalMatrix = np.array(normalize(np.array(hot_all_data_matrix),norm='l2'))
-    #print np.array(hot_all_data_matrix).shape
 
-    return normalized_finalMatrix
+    ##add extra bin containing time
+
+
+    ##return patinet id
+    patient_id = ids[0]
+
+    print 'HOT final matrix size: ', normalized_finalMatrix.shape
+
+    return normalized_finalMatrix, patient_id
 
 
 def measure_joints_accuracy(skeleton_data):
@@ -317,14 +324,14 @@ def feature_extraction_video_traj(skeleton_data,timeInterval_slice):
     print 'feature extraction'
 
     ## count traj points in each region and create hist
-    occupancy_histograms = occupancy_histograms_in_time_interval(my_room, list_poly, skeleton_data_in_time_slices)
-
+    #occupancy_histograms = occupancy_histograms_in_time_interval(my_room, list_poly, skeleton_data_in_time_slices)
+    occupancy_histograms = 0
 
     ## create Histograms of Oriented Tracks
-    HOT_data = histograms_of_oriented_trajectories(list_poly,skeleton_data_in_time_slices)
+    HOT_data,patient_ID = histograms_of_oriented_trajectories(list_poly,skeleton_data_in_time_slices)
 
 
-    return [occupancy_histograms,HOT_data]
+    return [occupancy_histograms,HOT_data],patient_ID
 
     #cluster_prediction = my_exp.main_experiments(HOT_data)
 

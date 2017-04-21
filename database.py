@@ -1,6 +1,7 @@
 from pymongo import MongoClient as Connection
 import numpy as np
 from datetime import datetime
+import cPickle
 import multiprocessing
 #from multiprocessing.dummy import Pool as threadPool
 
@@ -125,16 +126,20 @@ def read_kinect_joints_from_db(kinect_collection,time_interval,multithread):
                 break
 
     #print joint_points[0]
-    print np.array(joint_points).shape
+    print 'retrieved trajectory matrix size: ', np.array(joint_points).shape
     return joint_points
 
 
 def read_ambient_sensor_from_db(binary_collection,time_interval):
 
+    begin_period = datetime.strptime(time_interval[0], '%Y-%m-%d %H:%M:%S')
+    end_period = datetime.strptime(time_interval[1], '%Y-%m-%d %H:%M:%S')
+
     binary_data = []
     for data in binary_collection.find({}):
 
-        binary_data.append(data['Value'])
+        if begin_period <= data['_id'] <= end_period:
+            binary_data.append(data['Value'])
 
     return binary_data
 
@@ -180,3 +185,19 @@ def save_img(filename):
 
 def get_img(filename):
     print 'get img from db'
+
+
+def write_output_file(participant_ID, content, path):
+
+    day ='19-4-2017'
+    file_name = path +'participantID' + str(participant_ID) + '_' + day + '.txt'
+
+    file = open(file_name, 'w')
+    ##participant name
+
+    ##functionalities for every patient ID
+    for c in range(1, len(content),2):
+        file.write(content[c-1])
+        file.write('\t')
+        file.write(str(content[c]))
+        file.write('\n')

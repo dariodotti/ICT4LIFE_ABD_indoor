@@ -10,8 +10,8 @@ from math import atan2,degrees,isnan
 
 #Divide image into regions seen as polygons
 #Private variables
-__slice_col = 8
-__slice_row = 6
+__slice_col = 4
+__slice_row = 3
 __slice_depth = 2
 
 
@@ -117,8 +117,8 @@ def histogram_oriented_tracklets(cube):
 
         for i in xrange(0,len(cube)-step):
 
-            dx =abs(float(cube[i+step,0]) - float(cube[i,0]))
-            dy = abs(float(cube[i+step,1]) - float(cube[i,1]))
+            dx = float(cube[i+step,0]) - float(cube[i,0])
+            dy = float(cube[i+step,1]) - float(cube[i,1])
 
             orientation = int(degrees(atan2(dy,dx))%360)
             magn = int(np.sqrt((np.power(dx,2)+np.power(dy,2))))

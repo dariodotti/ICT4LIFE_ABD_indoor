@@ -96,11 +96,12 @@ def bar_plot_motion_over_time(data):
 
 
 def pie_plot_motion_day(data):
-    last_col = np.array(data).shape[1]-1
-    hs = data[:,last_col:]
-    data = data[:,:last_col]
+    #last_col = np.array(data).shape[1]-1
+    #hs = data[:,last_col:]
+    #data = data[:,:last_col]
 
-    desks_areas= [35,37,45,51,53,61]
+    #desks_areas= [35,37,45,51,53,61]
+    desks_areas = [12,13,14]
 
 
     #motion divided in 3 groups
@@ -120,19 +121,19 @@ def pie_plot_motion_day(data):
 
 
     #plot
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    labels = 'stationary', 'slight mov', 'fast mov'
-    colors = ['yellowgreen', 'gold', 'lightskyblue']
-    pie_slice_size = [float(i)/np.sum(motion[0]) for i in motion[0]]
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111)
+    # labels = 'stationary', 'slight mov', 'fast mov'
+    # colors = ['yellowgreen', 'gold', 'lightskyblue']
+    # pie_slice_size = [float(i)/np.sum(motion[0]) for i in motion[0]]
+    #
+    # print motion
+    #
+    # ax.pie(pie_slice_size,labels=labels, colors=colors,autopct='%1.1f%%', shadow=True)
+    # plt.axis('equal')
+    # plt.show()
 
-    print motion
-
-    ax.pie(pie_slice_size,labels=labels, colors=colors,autopct='%1.1f%%', shadow=True)
-    plt.axis('equal')
-    plt.show()
-
-    return pie_slice_size
+    return motion
 
 
 def bar_plot_motion_in_region_over_long_time(motion_week):
@@ -199,6 +200,7 @@ def plot_ambient_sensor_ONOFF_pair_over_time(sensor_data):
     #     plt.scatter(x,y,marker=m,s=80,c=c)
     #
     plt.show()
+
 
 
 def plot_mean_joints_displacement(mean_displacement_list):
