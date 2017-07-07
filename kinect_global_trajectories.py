@@ -2,17 +2,20 @@ import cv2
 import numpy as np
 from sklearn.preprocessing import normalize
 from datetime import datetime, timedelta
+from scipy.ndimage.filters import gaussian_filter
 from lxml import etree
+from collections import Counter
 
 import img_processing_kinect as my_img_proc
-
+import database
 import visualization as vis
+import classifiers
 
 kinect_max_distance=0
+kinect_min_distance=0
 
 
-
-def org_xml_data_timeIntervals(skeleton_data,timeInterval_slice):
+def org_data_in_timeIntervals(skeleton_data, timeInterval_slice):
     #get all time data from the list dropping the decimal
     content_time = map(lambda line: line[0,1].split(' ')[1].split('.')[0],skeleton_data)
 
@@ -63,19 +66,37 @@ def org_xml_data_timeIntervals(skeleton_data,timeInterval_slice):
     return time_slices
 
 
-def get_coordinate_points(time_slice):
+def get_coordinate_points(time_slice, joint_id):
 
     #get all the coordinate points of head joint
-    list_points = []
-    list_points_append = list_points.append
-
-    #get x,y,z,id
-    map(lambda line: list_points_append([line[1][0],line[1][1]]),time_slice)
-    zs = map(lambda line: float(line[1][2]),time_slice)
-    ids =map(lambda line: np.int64(line[0][2]),time_slice)
+    # list_points = []
+    # list_points_append = list_points.append
+    #
+    # #get x,y,z,id
+    # map(lambda line: list_points_append([line[1][0],line[1][1]]),time_slice)
+    # zs = map(lambda line: float(line[1][2]),time_slice)
+    # ids =map(lambda line: np.int64(line[0][2]),time_slice)
 
     #apply filter to cancel noise
-    x_f,y_f =my_img_proc.median_filter(list_points)
+    #x_f,y_f =my_img_proc.median_filter(list_points)
+
+    xs = map(lambda line: float(line[joint_id][0]) ,time_slice)
+    ys = map(lambda line: float(line[joint_id][1]), time_slice)
+    zs = map(lambda line: float(line[joint_id][2]), time_slice)
+    ids = map(lambda line: np.int64(line[0][2]), time_slice)
+
+    x_f = gaussian_filter(xs,2)
+    y_f = gaussian_filter(ys,2)
+
+
+    global kinect_max_distance
+    global kinect_min_distance
+    kinect_max_distance = max(zs)
+    kinect_min_distance = min(zs)
+
+
+
+
 
     return x_f,y_f,zs,ids
 
@@ -102,7 +123,7 @@ def occupancy_histograms_in_time_interval(my_room, list_poly, time_slices):
         track_points_counter = np.zeros((slice_col*slice_row*slice_depth))
 
         ##get x,y,z of every traj point after smoothing process
-        x_filtered,y_filtered,zs,ids = get_coordinate_points(time_slices[i])
+        x_filtered,y_filtered,zs,ids = get_coordinate_points(time_slices[i], joint_id=3)
 
         ## display traj on img
         #temp_img = copy.copy(my_room)
@@ -137,6 +158,9 @@ def occupancy_histograms_in_time_interval(my_room, list_poly, time_slices):
 
 def histograms_of_oriented_trajectories(list_poly,time_slices):
 
+    cube_size = int((kinect_max_distance - kinect_min_distance)/3)
+
+
     hot_all_data_matrix = []
     hot_all_data_matrix_append = hot_all_data_matrix.append
 
@@ -148,7 +172,7 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
         #     print 'no data in this time slice'
 
         #get x,y,z of every traj point after smoothing process
-        x_filtered,y_filtered,zs,ids = get_coordinate_points(time_slices[i])
+        x_filtered,y_filtered,zs,ids = get_coordinate_points(time_slices[i], joint_id= 3)
 
         #initialize histogram of oriented tracklets
         hot_matrix = []
@@ -156,23 +180,28 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
         for p in xrange(0,len(list_poly)):
             tracklet_in_cube_f = []
             tracklet_in_cube_c = []
+            tracklet_in_cube_middle = []
             tracklet_in_cube_append_f = tracklet_in_cube_f.append
             tracklet_in_cube_append_c = tracklet_in_cube_c.append
+            tracklet_in_cube_append_middle = tracklet_in_cube_middle.append
 
             for ci in xrange(0,len(x_filtered)):
                 #2d polygon
                 if list_poly[p].contains_point((int(x_filtered[ci]),int(y_filtered[ci]))):
                     ## 3d cube close to the camera
-                    if zs[ci] < (kinect_max_distance/2):
+                    if zs[ci] <= (kinect_min_distance+cube_size):
 
                         tracklet_in_cube_append_c([x_filtered[ci],y_filtered[ci],ids[ci]])
 
-                    else: ##3d cube far from the camera
 
+                    elif zs[ci] > (kinect_min_distance+cube_size) and zs[ci] < (kinect_min_distance+(cube_size*2)):
+                        tracklet_in_cube_append_middle([x_filtered[ci], y_filtered[ci], ids[ci]])
+
+                    elif zs[ci]>= kinect_min_distance + (cube_size*2): ##3d cube far from the camera
                         tracklet_in_cube_append_f([x_filtered[ci],y_filtered[ci],ids[ci]])
 
 
-            for three_d_poly in [tracklet_in_cube_c,tracklet_in_cube_f]:
+            for three_d_poly in [tracklet_in_cube_c, tracklet_in_cube_middle, tracklet_in_cube_f]:
                 if len(three_d_poly)>0:
 
                     ## for tracklet in cuboids compute HOT following paper
@@ -183,6 +212,8 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
 
                 else:
                     hot_single_poly = np.zeros((24))
+
+
                 ##add to general matrix
                 if len(hot_matrix)>0:
                     hot_matrix = np.hstack((hot_matrix,hot_single_poly))
@@ -304,10 +335,11 @@ def measure_joints_accuracy(skeleton_data):
     return frames_where_joint_displacement_over_threshold
 
 
-def feature_extraction_video_traj(skeleton_data,timeInterval_slice):
+def feature_extraction_video_traj(skeleton_data, timeInterval_slice, draw_joints_in_scene):
 
     ##divide image into patches(polygons) and get the positions of each one
-    my_room = np.zeros((414,512),dtype=np.uint8)
+    my_room = np.zeros((424,512,3),dtype=np.uint8)
+    my_room += 255
     list_poly = my_img_proc.divide_image(my_room)
 
 
@@ -316,8 +348,27 @@ def feature_extraction_video_traj(skeleton_data,timeInterval_slice):
     ##reliability method
     #measure_joints_accuracy(skeleton_data)
     #print skeleton_data[0]
-    skeleton_data_in_time_slices = org_xml_data_timeIntervals(skeleton_data,timeInterval_slice)
 
+    ## In case there are more than 1 ID in the scene I analyze the 1 trajectory per time
+
+    ids = map(lambda line: line[0][2], skeleton_data)
+    print 'skeleton id: ', Counter(ids).most_common()
+
+    main_id = Counter(ids).most_common()[1][0]
+
+    new_joints_points = []
+    for i_point, points in enumerate(skeleton_data):
+        if points[0][2] == main_id:
+            new_joints_points.append(points)
+
+    skeleton_data = new_joints_points
+
+    if draw_joints_in_scene:
+        ##Draw the skeleton and patches
+        vis.draw_joints_and_tracks(skeleton_data, list_poly, my_room)
+
+    ##Organize skeleton data in time interval segment
+    skeleton_data_in_time_slices = org_data_in_timeIntervals(skeleton_data, timeInterval_slice)
 
 
     ##--------------Feature Extraction-------------##
@@ -338,6 +389,15 @@ def feature_extraction_video_traj(skeleton_data,timeInterval_slice):
 
 def bow_traj(data_matrix,cluster_model,labels_training):
 
+    ##get bow already computed
+    bow_data = database.load_matrix_pickle('C:/Users/ICT4life/Documents/python_scripts/BOW_trained_data/BOW_16subject_2sec.txt')
+    labels_bow_data = database.load_matrix_pickle('C:/Users/ICT4life/Documents/python_scripts/BOW_trained_data/BOW_labels_16subject_2sec.txt')
+
+    ##labels meaning: 0 - normal activity , 1- normal-activity, 2-confusion, 3-repetitive, 4-questionnaire at table, 5- making tea
+
+
+    classifiers.logistic_regression_train(bow_data, np.ravel(labels_bow_data), save_model=0)
+
     key_labels = map(lambda x: x[0],labels_training)
 
     hist = np.zeros((1, len(key_labels)))
@@ -345,12 +405,14 @@ def bow_traj(data_matrix,cluster_model,labels_training):
     # vocabulary=[]
     for row in data_matrix:
         #prediction from cluster to see which word is most similar to
-        similar_word = cluster_model.predict(row)
+        similar_word = cluster_model.predict(np.array(row).reshape((1, -1)))
         index = np.where(similar_word == key_labels)[0][0]
 
         hist[0][index] +=1
+        print classifiers.logistic_regression_predict(hist)
 
-    hist = normalize(np.array(hist),norm='l1')
+
+    #hist = normalize(np.array(hist),norm='l1')
     # if len(vocabulary)>0:
     #     vocabulary = np.vstack((vocabulary,hist))
     # else:

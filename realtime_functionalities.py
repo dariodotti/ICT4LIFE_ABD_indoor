@@ -1,5 +1,7 @@
 import argparse
 from datetime import datetime,timedelta
+from collections import Counter
+
 
 import database
 import conf_file
@@ -9,25 +11,29 @@ import kinect_global_trajectories
 def disorientation(db,avaliable_sensor,time_interval):
 
     ##TEMP cause i dont have realtime
-    time_interval = ['2016-12-07 13:08:00', '2016-12-07 13:08:40']
+    time_interval = ['2016-12-07 13:08:00', '2016-12-07 13:10:40']
 
     if avaliable_sensor['kinect']:
 
         ##get realtime data from db
         kinect_joints = database.read_kinect_joints_from_db(db.Kinect, time_interval, multithread=0)
 
+        hours = 0
+        minute = 0
+        second = 3
+
         # extract features from kinect
-        global_traj_features = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints)
+        global_traj_features,patient_ID = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints,[hours, minute, second], draw_joints_in_scene=1)
 
-        ##get labels from cluster
+        ##get labels from already trained cluster
+        cluster_model = database.load_matrix_pickle('C:/Users/ICT4life/Documents/python_scripts/BOW_trained_data/cl_model_2secWindow_band03.txt')
+        labels_cluster = database.load_matrix_pickle('C:/Users/ICT4life/Documents/python_scripts/BOW_trained_data/cluster_labels.txt')
+        labels_counter_counter = Counter(labels_cluster).most_common(40)
+
+
         #####
-        ##create bag of words with the traj
-        #bow_data = kinect_global_trajectories.bow_traj(global_traj_features,cluster_model,labels_training)
-
-        ##classify the new entry
-
-        #classifier = database.get_classifier_model('')
-        #prediction = classifier.predict(bow_data)
+        ##classify spatial-temporal features using bow
+        bow_data = kinect_global_trajectories.bow_traj(global_traj_features[1],cluster_model,labels_counter_counter)
 
 
 

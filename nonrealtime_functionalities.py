@@ -13,7 +13,7 @@ import conf_file
 
 def daily_motion_training(db,avaliable_sensor):
 
-    time_interval = ['2016-12-07 13:00:00', '2016-12-07 13:20:00']
+    time_interval = ['2016-12-07 13:08:00', '2016-12-07 13:10:40']
 
     if avaliable_sensor['kinect']:
         print 'kinect for daily motion'
@@ -24,10 +24,10 @@ def daily_motion_training(db,avaliable_sensor):
         #extract features from kinect
         hours = 0
         minutes = 0
-        seconds = 25
+        seconds = 2
         date = '2016-12-07'
         time_slice_size = [hours, minutes, seconds]
-        global_traj_features,patient_ID = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints,time_slice_size)
+        global_traj_features,patient_ID = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints,time_slice_size, draw_joints_in_scene=0)
 
         #Get labels from clustering
         #labels_cluster = classifiers.cluster_kmeans(global_traj_features[1],k=3)
@@ -228,19 +228,24 @@ def main_nonrealtime_functionalities():
 
     #apathy()
 
-    ##if we want to compute the nr in a particular time range use this function
-    #nr_visit = visit_bathroom(db,avaliable_sensor)
+
     ##if we want the total number of visit we take it from the day and night motion
-    nr_visit = [day_motion_as_activation['toilet'][0] + night_motion_as_activation['toilet'][0],day_motion_as_activation['toilet'][1] + night_motion_as_activation['toilet'][1]]
+    nr_visit={'number': int,'beginning':[],'duration':[]}
+    for k in day_motion_as_activation.keys():
+        nr_visit['beginning'].append(day_motion_as_activation[k][0] + night_motion_as_activation[k][0])
+        nr_visit['duration'].append(day_motion_as_activation[k][1] + night_motion_as_activation[k][1])
+    nr_visit['number'] = len(nr_visit['beginning'][0])
 
 
-    ## at the end of the daye summarize and write all the results in a file that will be uploaded into amazon web services
+    ## at the end of the day summarize and write all the results in a file that will be uploaded into amazon web services
 
     ##TODO: complete the method that now are added artificially (i.g. confusion , leave the house)
     data = ['daily_motion: ',kinect_motion_amount,'as_day_motion: ', day_motion_as_activation, 'as_night_motion: ', night_motion_as_activation,
-            'visit_bathroom: ',nr_visit, 'confusion_behavior_detection: ',['0',[],[]],'leave the house: ' , '1','leave_house_confused: ','0']
+            'visit_bathroom: ',nr_visit, 'confusion_behavior_detection: ',{'number':2,'beginning':[],'duration':[]},'leave the house: ' , '1','leave_house_confused: ','0']
 
-    database.write_output_file(patient_ID,data,'C:/Users/ICT4life/Documents/')
+
+
+    database.write_output_file(patient_ID,data,'C:/')
 
 
 

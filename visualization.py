@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import cv2
 
 
 def bar_plot_occupancy_selectedAreas_over_time(data):
@@ -100,8 +101,7 @@ def pie_plot_motion_day(data):
     #hs = data[:,last_col:]
     #data = data[:,:last_col]
 
-    #desks_areas= [35,37,45,51,53,61]
-    desks_areas = [12,13,14]
+    desks_areas = range(0,36)#[12,13,14]
 
 
     #motion divided in 3 groups
@@ -120,18 +120,22 @@ def pie_plot_motion_day(data):
                 motion[0,2] = motion[0,2]+magns_cube[2]
 
 
-    #plot
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111)
-    # labels = 'stationary', 'slight mov', 'fast mov'
-    # colors = ['yellowgreen', 'gold', 'lightskyblue']
-    # pie_slice_size = [float(i)/np.sum(motion[0]) for i in motion[0]]
-    #
-    # print motion
-    #
-    # ax.pie(pie_slice_size,labels=labels, colors=colors,autopct='%1.1f%%', shadow=True)
-    # plt.axis('equal')
-    # plt.show()
+    if motion.sum(axis=1) == 0:
+        print 'no motion to plot ', motion
+    else:
+
+        #plot
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        labels = 'stationary', 'slight mov', 'fast mov'
+        colors = ['yellowgreen', 'gold', 'lightskyblue']
+        pie_slice_size = [float(i)/np.sum(motion[0]) for i in motion[0]]
+
+        print motion
+
+        ax.pie(pie_slice_size,labels=labels, colors=colors,autopct='%1.1f%%', shadow=True)
+        plt.axis('equal')
+        plt.show()
 
     return motion
 
@@ -202,7 +206,6 @@ def plot_ambient_sensor_ONOFF_pair_over_time(sensor_data):
     plt.show()
 
 
-
 def plot_mean_joints_displacement(mean_displacement_list):
 
     fig = plt.figure()
@@ -229,3 +232,98 @@ def plot_single_joint_displacement_vs_filtered_points(my_joint_raw,my_joint_filt
     plt.title('subject 7')
     plt.show()
 
+
+def draw_joints_and_tracks(body_points, scene_patches, scene):
+    color = (0, 0, 255)
+
+    # draw line between joints
+    thickness = 3
+    line_color = (19, 19, 164)
+
+    ##check patches are correct
+    for i_rect, rect in enumerate(scene_patches):
+        cv2.rectangle(scene, (int(rect.vertices[1][0]), int(rect.vertices[1][1])),
+                      (int(rect.vertices[3][0]), int(rect.vertices[3][1])), (0, 0, 0))
+
+        ## write number of patch on img
+        cv2.putText(scene, str(i_rect), (int(rect.vertices[1][0]) + 10, int(rect.vertices[1][1]) + 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+
+    for n_frame, traj_body_joints in enumerate(body_points):
+        # n_frame = n_frame+1402
+
+        # if n_frame < 4870:
+        #     continue
+
+        temp_img = scene.copy()
+
+        # draw joints
+        print n_frame
+
+        # first position skipped cause there are other info stored
+        try:
+            # torso
+            cv2.line(temp_img, (int(float(traj_body_joints[4, 0])), int(float(traj_body_joints[4, 1]))),
+                     (int(float(traj_body_joints[3, 0])), int(float(traj_body_joints[3, 1]))), line_color, thickness)
+            cv2.line(temp_img, (int(float(traj_body_joints[3, 0])), int(float(traj_body_joints[3, 1]))),
+                     (int(float(traj_body_joints[2, 0])), int(float(traj_body_joints[2, 1]))), line_color, thickness)
+            cv2.line(temp_img, (int(float(traj_body_joints[2, 0])), int(float(traj_body_joints[2, 1]))),
+                     (int(float(traj_body_joints[1, 0])), int(float(traj_body_joints[1, 1]))), line_color, thickness)
+            # shoulder
+            cv2.line(temp_img, (int(float(traj_body_joints[21, 0])), int(float(traj_body_joints[21, 1]))),
+                     (int(float(traj_body_joints[9, 0])), int(float(traj_body_joints[9, 1]))), line_color, thickness)
+            cv2.line(temp_img, (int(float(traj_body_joints[21, 0])), int(float(traj_body_joints[21, 1]))),
+                     (int(float(traj_body_joints[5, 0])), int(float(traj_body_joints[5, 1]))), line_color, thickness)
+            # hips
+            cv2.line(temp_img, (int(float(traj_body_joints[1, 0])), int(float(traj_body_joints[1, 1]))),
+                     (int(float(traj_body_joints[17, 0])), int(float(traj_body_joints[17, 1]))), line_color, thickness)
+            cv2.line(temp_img, (int(float(traj_body_joints[1, 0])), int(float(traj_body_joints[1, 1]))),
+                     (int(float(traj_body_joints[13, 0])), int(float(traj_body_joints[13, 1]))), line_color, thickness)
+            # right arm
+            cv2.line(temp_img, (int(float(traj_body_joints[9, 0])), int(float(traj_body_joints[9, 1]))),
+                     (int(float(traj_body_joints[10, 0])), int(float(traj_body_joints[10, 1]))), line_color, thickness)
+            cv2.line(temp_img, (int(float(traj_body_joints[10, 0])), int(float(traj_body_joints[10, 1]))),
+                     (int(float(traj_body_joints[11, 0])), int(float(traj_body_joints[11, 1]))), line_color, thickness)
+            cv2.line(temp_img, (int(float(traj_body_joints[11, 0])), int(float(traj_body_joints[11, 1]))),
+                     (int(float(traj_body_joints[12, 0])), int(float(traj_body_joints[12, 1]))), line_color, thickness)
+            # left arm
+            cv2.line(temp_img, (int(float(traj_body_joints[5, 0])), int(float(traj_body_joints[5, 1]))),
+                     (int(float(traj_body_joints[6, 0])), int(float(traj_body_joints[6, 1]))), line_color, thickness)
+            cv2.line(temp_img, (int(float(traj_body_joints[6, 0])), int(float(traj_body_joints[6, 1]))),
+                     (int(float(traj_body_joints[7, 0])), int(float(traj_body_joints[7, 1]))), line_color, thickness)
+            cv2.line(temp_img, (int(float(traj_body_joints[7, 0])), int(float(traj_body_joints[7, 1]))),
+                     (int(float(traj_body_joints[8, 0])), int(float(traj_body_joints[8, 1]))), line_color, thickness)
+
+            # left leg
+            cv2.line(temp_img, (int(float(traj_body_joints[13, 0])), int(float(traj_body_joints[13, 1]))),
+                     (int(float(traj_body_joints[14, 0])), int(float(traj_body_joints[14, 1]))), line_color, thickness)
+            cv2.line(temp_img, (int(float(traj_body_joints[14, 0])), int(float(traj_body_joints[14, 1]))),
+                     (int(float(traj_body_joints[15, 0])), int(float(traj_body_joints[15, 1]))), line_color, thickness)
+            cv2.line(temp_img, (int(float(traj_body_joints[15, 0])), int(float(traj_body_joints[15, 1]))),
+                     (int(float(traj_body_joints[16, 0])), int(float(traj_body_joints[16, 1]))), line_color, thickness)
+            # right leg
+            cv2.line(temp_img, (int(float(traj_body_joints[17, 0])), int(float(traj_body_joints[17, 1]))),
+                     (int(float(traj_body_joints[18, 0])), int(float(traj_body_joints[18, 1]))), line_color, thickness)
+            cv2.line(temp_img, (int(float(traj_body_joints[18, 0])), int(float(traj_body_joints[18, 1]))),
+                     (int(float(traj_body_joints[19, 0])), int(float(traj_body_joints[19, 1]))), line_color, thickness)
+            cv2.line(temp_img, (int(float(traj_body_joints[19, 0])), int(float(traj_body_joints[19, 1]))),
+                     (int(float(traj_body_joints[20, 0])), int(float(traj_body_joints[20, 1]))), line_color, thickness)
+
+            if n_frame > 0:
+                for i, joint in enumerate(traj_body_joints):
+                    if i == 0:
+                        continue
+                    cv2.circle(temp_img, (int(float(joint[0])), int(float(joint[1]))), 2, color, -1)
+                    if i == 3 and n_frame > 0:
+                        ##draw trajectories
+                        cv2.circle(scene, (int(float(joint[0])), int(float(joint[1]))), 2, color, -1)
+                    else:
+                        ##draw joint
+                        cv2.circle(temp_img, (int(float(joint[0])), int(float(joint[1]))), 2, color, -1)
+
+            cv2.imshow('lab', temp_img)
+            cv2.waitKey(1)
+
+        except:
+            print 'traj coordinates not available'
+            continue

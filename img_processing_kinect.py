@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from scipy import signal
 import matplotlib.path as mplPath
 from math import atan2,degrees,isnan
+import cPickle
 
 
 
@@ -11,8 +12,8 @@ from math import atan2,degrees,isnan
 #Divide image into regions seen as polygons
 #Private variables
 __slice_col = 4
-__slice_row = 3
-__slice_depth = 2
+__slice_row = 4
+__slice_depth = 3
 
 
 def get_slice_cols():
@@ -42,7 +43,7 @@ def divide_image(my_room):
     #     print 'img not divisible by the given number of slices'
     #     return list_poly
 
-    n_row = range(0,my_room.shape[0],my_room.shape[0]/slice_rows)
+    n_row = range(106,my_room.shape[0],my_room.shape[0]/slice_rows)
     n_col = range(0,my_room.shape[1],my_room.shape[1]/slice_cols)
 
     for r in range(0,len(n_row)):
@@ -112,7 +113,7 @@ def histogram_oriented_tracklets(cube):
 
     if len(list(set(cube[:,2]))) == 1:
         k = cube[0,2]
-        step = 2
+        step = 3
 
 
         for i in xrange(0,len(cube)-step):
@@ -301,3 +302,4 @@ def display_trajectories(temp_img, list_poly, x, y):
 
     cv2.imshow('lab_room',temp_img)
     cv2.waitKey(0)
+

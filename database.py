@@ -201,3 +201,14 @@ def write_output_file(participant_ID, content, path):
         file.write('\t')
         file.write(str(content[c]))
         file.write('\n')
+
+
+def load_matrix_pickle(path):
+    with open(path, 'rb') as handle:
+        file = cPickle.load(handle)
+    return file
+
+def save_matrix_pickle(file, path):
+    with open(path, 'wb') as handle:
+        cPickle.dump(file,handle, protocol=2)
+    return file
