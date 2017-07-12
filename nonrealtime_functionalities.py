@@ -1,5 +1,6 @@
 import numpy as np
 import argparse
+from datetime import datetime
 
 import database
 import kinect_global_trajectories
@@ -199,6 +200,14 @@ def visit_bathroom(db,avaliable_sensor):
     return toilet_visit
 
 
+def get_freezing_loss_of_balance_detection(db):
+
+    time_interval = ['2017-1-1 0:0:1', '2017-1-2 0:0:1']
+    kinect_global_trajectories.freezing_detection(db, time_interval)
+
+    kinect_global_trajectories.loss_of_balance_detection(db, time_interval)
+
+
 
 def main_nonrealtime_functionalities():
 
@@ -227,6 +236,15 @@ def main_nonrealtime_functionalities():
     #abnormal_behavior_classification_training(db, avaliable_sensor)
 
     #apathy()
+
+    ## ---------CERTH
+    get_freezing_loss_of_balance_detection(db)
+
+    # summarize HBR, GSR
+    database.summary_MSBand(db, [2017, 2, 21])
+
+    database.summarize_events_certh('freezing', '')
+    ##-------
 
 
     ##if we want the total number of visit we take it from the day and night motion

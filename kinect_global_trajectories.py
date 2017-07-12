@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from scipy.ndimage.filters import gaussian_filter
 from lxml import etree
 from collections import Counter
+import time
 
 import img_processing_kinect as my_img_proc
 import database
@@ -420,3 +421,165 @@ def bow_traj(data_matrix,cluster_model,labels_training):
 
     return hist
 
+def unix_time_ms(date):
+
+    from datetime import datetime
+
+    return (date - datetime(1970,1,1)).total_seconds() * 1000
+
+def freezing_detection(db, time_interval):
+
+
+    colMSBand = db.MSBand
+    requestDate = datetime.strptime(time_interval[0], "%Y-%m-%d %H:%M:%S")
+
+    requestInterval = 4  # seconds
+    fps = 30
+
+    model = classifiers.model_Freezing(nSteps=requestInterval*fps, nVars=4,
+                                       RNN=[200, False, 1],
+                                       lrnRate=10**-4, pDrop=0.2)
+
+    #model = classifiers.load_model_weights(model, 'path to model weights')
+
+    while True:
+
+        t1 = datetime.now()
+
+        timeStart = requestDate.strftime("%Y-%m-%d %H:%M:%S")
+        timeEnd = (requestDate + timedelta(seconds=requestInterval)).strftime("%Y-%m-%d %H:%M:%S")
+
+        d = database.read_MSBand_from_db(collection=colMSBand,
+                                         time_interval=[timeStart, timeEnd],
+                                         session='')
+
+        ts = []
+        data = []
+        for i in range(len(d)):
+            ts.append( unix_time_ms(d[i][1]) )
+            data.append( d[i][2:5] )
+
+        ts = np.array(ts)
+        data = np.array(data)
+
+        # if there are enough available data (>14 fps)
+        if data.shape[0] >= requestInterval * 14:
+
+            # add magnitude
+            data = np.hstack((data, np.sqrt(np.sum(data**2, axis=1)).reshape(-1, 1)))
+
+            data_interp = np.zeros((requestInterval * 30 + 1, 4))
+
+            # interpolate data if needed
+            if data.shape[0] != requestInterval * 30 + 1:
+
+                for j in range(4):
+
+                    new_ts = np.linspace(ts[0], ts[-1], requestInterval * 30 + 1)
+                    data_interp[:, j] = np.interp(new_ts, ts, data[:, j])
+
+            else:
+
+                data_interp = data
+
+            # normalize data
+            data_interp = np.diff(data_interp, axis=0)
+
+            data_interp = data_interp.reshape((1, requestInterval * fps, 4))
+
+            prediction = model.predict(data_interp, batch_size=64)
+
+            t2 = datetime.now()
+
+            print '{0} | Freeze: {1:02.1f} % | Time: {2}ms'.\
+            format(timeStart, 100 * prediction[0, 1], (t2 - t1).microseconds / 1000)
+
+            requestDate += timedelta(seconds=requestInterval)
+
+        else:
+
+            print '{0} - {1}: Not enough data ({2})'.format(timeStart, timeEnd, len(d))
+
+            t2 = datetime.now()
+
+            requestDate += timedelta(seconds=requestInterval)
+
+        if (t2 - t1).seconds < requestInterval:
+                time.sleep(requestInterval - (t2 - t1).seconds)
+
+        if datetime.strptime(time_interval[1], "%Y-%m-%d %H:%M:%S") < \
+           datetime.strptime(timeEnd, "%Y-%m-%d %H:%M:%S"):
+               break
+
+
+
+def loss_of_balance_detection(db, time_interval):
+
+
+    colKinect = db.Kinect
+    requestDate = datetime.strptime(time_interval[0], "%Y-%m-%d %H:%M:%S")
+
+    requestInterval = 1  # seconds
+
+    while True:
+
+        t1 = datetime.now()
+
+        timeStart = requestDate.strftime("%Y-%m-%d %H:%M:%S")
+        timeEnd = (requestDate + timedelta(seconds=requestInterval)).strftime("%Y-%m-%d %H:%M:%S")
+
+        d = database.read_kinect_data_from_db(collection=colKinect,
+                                              time_interval=[timeStart, timeEnd],
+                                              session='',
+                                              skeletonType='raw',
+                                              exclude_columns=['ColorImage', 'DepthImage',
+                                                               'InfraImage', 'BodyImage'])
+
+        hasSkeleton = [False, False, False, False, False, False]
+        idSkeleton = [0, 0, 0, 0, 0, 0]
+        skeletons = []
+
+        # read data
+        for i in range(len(d)):
+
+            for j in range(6):
+
+                m = max(idSkeleton)
+
+                # found new skeleton
+                if hasSkeleton[j] == False and d[i][j] != []:
+                    idSkeleton[j] = m + 1
+                    hasSkeleton[j] = True
+                    skeletons.append([])
+
+                if hasSkeleton[j] == True and d[i][j] == []:
+                    hasSkeleton[j] == False
+
+                if d[i][j] != []:
+                    skeletons[idSkeleton[j] - 1].append([d[i][j][2], d[i][j][3]])
+
+        for k in range(len(skeletons)):
+
+            skeletons[k] = np.array(skeletons[k])
+            skeletons[k] = np.abs(skeletons[k])
+
+            if np.sum(skeletons[k] > 0.9) > 0:
+                prediction = 1
+            else:
+                prediction = 0
+
+            t2 = datetime.now()
+
+            print '{0} | skeleton {1} | Loss of balance: {1:02.1f} % | Time: {2}ms'.\
+            format(timeStart, k, 100 * prediction, (t2 - t1).microseconds / 1000)
+
+        t2 = datetime.now()
+
+        requestDate += timedelta(seconds=requestInterval)
+
+        if (t2 - t1).seconds < requestInterval:
+                time.sleep(requestInterval - (t2 - t1).seconds)
+
+        if datetime.strptime(time_interval[1], "%Y-%m-%d %H:%M:%S") < \
+           datetime.strptime(timeEnd, "%Y-%m-%d %H:%M:%S"):
+               break
