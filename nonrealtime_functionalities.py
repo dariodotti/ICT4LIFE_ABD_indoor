@@ -243,7 +243,7 @@ def main_nonrealtime_functionalities():
     # summarize HBR, GSR
     database.summary_MSBand(db, [2017, 2, 21])
 
-    database.summarize_events_certh('freezing', '')
+    database.summarize_events_certh('freezing', path)
     ##-------
 
 
