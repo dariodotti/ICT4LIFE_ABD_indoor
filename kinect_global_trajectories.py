@@ -12,8 +12,9 @@ import database
 import visualization as vis
 import classifiers
 
-kinect_max_distance=0
-kinect_min_distance=0
+kinect_max_distance= 4.5
+kinect_min_distance=0.5
+cube_size = (kinect_max_distance-kinect_min_distance)/3
 
 
 def org_data_in_timeIntervals(skeleton_data, timeInterval_slice):
@@ -89,15 +90,13 @@ def get_coordinate_points(time_slice, joint_id):
     x_f = gaussian_filter(xs,2)
     y_f = gaussian_filter(ys,2)
 
-
-    global kinect_max_distance
-    global kinect_min_distance
-    kinect_max_distance = max(zs)
-    kinect_min_distance = min(zs)
-
-
-
-
+    
+    #global kinect_max_distance
+    #global kinect_min_distance
+    #kinect_max_distance = max(zs)
+    #kinect_min_distance = min(zs)
+    #kinect_min_distance = 0.5
+    
 
     return x_f,y_f,zs,ids
 
@@ -112,12 +111,13 @@ def occupancy_histograms_in_time_interval(my_room, list_poly, time_slices):
     my_data_temp_append = my_data_temp.append
 
     for i in xrange(0,len(time_slices)):
-
+        
         ## Checking the start time of every time slice
         if len(time_slices[i])>1:
             print 'start time: %s' %time_slices[i][0][0][1].split(' ')[1].split('.')[0]
         else:
             print 'no data in this time slice'
+            continue
 
 
         ## counter for every id should be empty
@@ -159,25 +159,27 @@ def occupancy_histograms_in_time_interval(my_room, list_poly, time_slices):
 
 def histograms_of_oriented_trajectories(list_poly,time_slices):
 
-    cube_size = int((kinect_max_distance - kinect_min_distance)/3)
-
-
+    print kinect_max_distance, kinect_min_distance
+    
     hot_all_data_matrix = []
     hot_all_data_matrix_append = hot_all_data_matrix.append
 
     for i in xrange(0,len(time_slices)):
         ##Checking the start time of every time slice
-        # if(len(time_slices[i])>1):
-        #     print 'start time: %s' %str(time_slices[i][0].split(' ')[8])
-        # else:
-        #     print 'no data in this time slice'
+        if(len(time_slices[i])>1):
+            print 'start time: %s' %str(time_slices[i][0][0][1])
+        else:
+            print 'no data in this time slice'
+            continue
 
         #get x,y,z of every traj point after smoothing process
         x_filtered,y_filtered,zs,ids = get_coordinate_points(time_slices[i], joint_id= 3)
-
+        
+        
         #initialize histogram of oriented tracklets
         hot_matrix = []
 
+        
         for p in xrange(0,len(list_poly)):
             tracklet_in_cube_f = []
             tracklet_in_cube_c = []
@@ -187,6 +189,9 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
             tracklet_in_cube_append_middle = tracklet_in_cube_middle.append
 
             for ci in xrange(0,len(x_filtered)):
+                if np.isinf(x_filtered[ci]) or np.isinf(y_filtered[ci]): continue
+
+
                 #2d polygon
                 if list_poly[p].contains_point((int(x_filtered[ci]),int(y_filtered[ci]))):
                     ## 3d cube close to the camera
@@ -195,13 +200,16 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
                         tracklet_in_cube_append_c([x_filtered[ci],y_filtered[ci],ids[ci]])
 
 
-                    elif zs[ci] > (kinect_min_distance+cube_size) and zs[ci] < (kinect_min_distance+(cube_size*2)):
+                    elif zs[ci] > (kinect_min_distance+cube_size) and zs[ci] < (kinect_min_distance+(cube_size*2)): #
                         tracklet_in_cube_append_middle([x_filtered[ci], y_filtered[ci], ids[ci]])
 
                     elif zs[ci]>= kinect_min_distance + (cube_size*2): ##3d cube far from the camera
                         tracklet_in_cube_append_f([x_filtered[ci],y_filtered[ci],ids[ci]])
 
 
+            print len(tracklet_in_cube_c),len(tracklet_in_cube_middle),len(tracklet_in_cube_f)
+
+            
             for three_d_poly in [tracklet_in_cube_c, tracklet_in_cube_middle, tracklet_in_cube_f]:
                 if len(three_d_poly)>0:
 
@@ -339,7 +347,8 @@ def measure_joints_accuracy(skeleton_data):
 def feature_extraction_video_traj(skeleton_data, timeInterval_slice, draw_joints_in_scene):
 
     ##divide image into patches(polygons) and get the positions of each one
-    my_room = np.zeros((424,512,3),dtype=np.uint8)
+    #my_room = np.zeros((424,512,3),dtype=np.uint8)
+    my_room = cv2.imread('C:/Users/certhadmin/Documents/ABD_files/pecs_room.jpg')
     my_room += 255
     list_poly = my_img_proc.divide_image(my_room)
 
@@ -354,65 +363,99 @@ def feature_extraction_video_traj(skeleton_data, timeInterval_slice, draw_joints
 
     ids = map(lambda line: line[0][2], skeleton_data)
     print 'skeleton id: ', Counter(ids).most_common()
+    #main_id = Counter(ids).most_common()[1][0]
+    
+    database.save_matrix_pickle(skeleton_data,'C:/Users/certhadmin/Desktop/data_for_review/skeletons_repetitive_behavior_08082017.txt')
 
-    main_id = Counter(ids).most_common()[1][0]
+    HOT_data_all_ids = []
+    
+    for counter_ids in Counter(ids).most_common()[:2]:
+        skeleton_id = skeleton_data
+        main_id = counter_ids[0]
 
-    new_joints_points = []
-    for i_point, points in enumerate(skeleton_data):
-        if points[0][2] == main_id:
-            new_joints_points.append(points)
+        new_joints_points = []
+        for i_point, points in enumerate(skeleton_id):
+            if points[0][2] == main_id:
+                new_joints_points.append(points)
 
-    skeleton_data = new_joints_points
+        skeleton_id = new_joints_points
 
-    if draw_joints_in_scene:
-        ##Draw the skeleton and patches
-        vis.draw_joints_and_tracks(skeleton_data, list_poly, my_room)
+        if draw_joints_in_scene:
+            ##Draw the skeleton and patches
+            vis.draw_joints_and_tracks(skeleton_id, list_poly, my_room)
 
-    ##Organize skeleton data in time interval segment
-    skeleton_data_in_time_slices = org_data_in_timeIntervals(skeleton_data, timeInterval_slice)
-
-
-    ##--------------Feature Extraction-------------##
-    print 'feature extraction'
-
-    ## count traj points in each region and create hist
-    #occupancy_histograms = occupancy_histograms_in_time_interval(my_room, list_poly, skeleton_data_in_time_slices)
-    occupancy_histograms = 0
-
-    ## create Histograms of Oriented Tracks
-    HOT_data,patient_ID = histograms_of_oriented_trajectories(list_poly,skeleton_data_in_time_slices)
+        ##Organize skeleton data in time interval segment
+        skeleton_data_in_time_slices = org_data_in_timeIntervals(skeleton_id, timeInterval_slice)
 
 
-    return [occupancy_histograms,HOT_data],patient_ID
+        ##--------------Feature Extraction-------------##
+        print 'feature extraction'
+
+        ##get global max min z of the data
+        #zs = map(lambda line: float(line[3][2]), skeleton_id)
+        #global kinect_max_distance
+        #global kinect_min_distance
+        #kinect_max_distance = max(zs)
+        #kinect_min_distance = min(zs)
+        #global cube_size
+        #cube_size =(kinect_max_distance - kinect_min_distance)/3
+        #print kinect_min_distance,kinect_max_distance,cube_size
+        #####
+
+        ## count traj points in each region and create hist
+        #occupancy_histograms = occupancy_histograms_in_time_interval(my_room, list_poly, skeleton_data_in_time_slices)
+        occupancy_histograms = 0
+
+        ## create Histograms of Oriented Tracks
+        HOT_data,patient_ID = histograms_of_oriented_trajectories(list_poly,skeleton_data_in_time_slices)
+
+        if len(HOT_data_all_ids)>0: HOT_data_all_ids = np.vstack((HOT_data_all_ids,HOT_data))
+        else: HOT_data_all_ids = HOT_data
+
+    print HOT_data_all_ids.shape
+
+    return [occupancy_histograms,HOT_data_all_ids],patient_ID
 
     #cluster_prediction = my_exp.main_experiments(HOT_data)
 
 
-def bow_traj(data_matrix,cluster_model,labels_training):
+def bow_traj(data_matrix,cluster_model,key_labels):
 
     ##get bow already computed
-    bow_data = database.load_matrix_pickle('C:/Users/ICT4life/Documents/python_scripts/BOW_trained_data/BOW_16subject_2sec.txt')
-    labels_bow_data = database.load_matrix_pickle('C:/Users/ICT4life/Documents/python_scripts/BOW_trained_data/BOW_labels_16subject_2sec.txt')
+##    bow_data = database.load_matrix_pickle('C:/Users/certhadmin/Desktop/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/BOW_30_kmeans_16subject_2sec.txt')
+##    labels_bow_data = database.load_matrix_pickle('C:/Users/certhadmin/Desktop/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/BOW_30_kmeans_labels_16subject_2sec.txt')
 
+    bow_data = database.load_matrix_pickle('C:/Users/certhadmin/Documents/ABD_files/test_cluster_without_outliers/BOW_3_kmeans_16subject_2sec_without_outlier.txt')
+    labels_bow_data = database.load_matrix_pickle('C:/Users/certhadmin/Documents/ABD_files/test_cluster_without_outliers/BOW_3_kmeans_labels_16subject_2sec_without_outlier.txt')
+    
     ##labels meaning: 0 - normal activity , 1- normal-activity, 2-confusion, 3-repetitive, 4-questionnaire at table, 5- making tea
-
-
     classifiers.logistic_regression_train(bow_data, np.ravel(labels_bow_data), save_model=0)
 
-    key_labels = map(lambda x: x[0],labels_training)
+    
 
     hist = np.zeros((1, len(key_labels)))
 
+    #database.save_matrix_pickle(data_matrix,'C:/Users/certhadmin/Desktop/behaviors_2.txt')
+
+    list_similar_words =[]
+    
     # vocabulary=[]
     for row in data_matrix:
+        #hist = np.zeros((1, len(key_labels)))
         #prediction from cluster to see which word is most similar to
         similar_word = cluster_model.predict(np.array(row).reshape((1, -1)))
+        #print 's_w', similar_word
+        list_similar_words.append(similar_word[0])
         index = np.where(similar_word == key_labels)[0][0]
+        hist[0][index]+=1
 
-        hist[0][index] +=1
+        
+
+        #print classifiers.logistic_regression_predict(normalize(hist,norm='l1'))
         print classifiers.logistic_regression_predict(hist)
 
-
+    
+    vis.plot_word_distribution(key_labels,hist)
     #hist = normalize(np.array(hist),norm='l1')
     # if len(vocabulary)>0:
     #     vocabulary = np.vstack((vocabulary,hist))
@@ -420,6 +463,12 @@ def bow_traj(data_matrix,cluster_model,labels_training):
     #     vocabulary = hist
 
     return hist
+
+
+
+
+
+
 
 def unix_time_ms(date):
 
@@ -449,9 +498,11 @@ def freezing_detection(db, time_interval):
         timeStart = requestDate.strftime("%Y-%m-%d %H:%M:%S")
         timeEnd = (requestDate + timedelta(seconds=requestInterval)).strftime("%Y-%m-%d %H:%M:%S")
 
-        d = database.read_MSBand_from_db(collection=colMSBand,
-                                         time_interval=[timeStart, timeEnd],
-                                         session='')
+        #d = database.read_MSBand_from_db(collection=colMSBand,
+        #                                 time_interval=[timeStart, timeEnd],
+        #                                 session='')
+
+
 
         ts = []
         data = []
@@ -517,11 +568,18 @@ def loss_of_balance_detection(db, time_interval):
 
 
     colKinect = db.Kinect
-    requestDate = datetime.strptime(time_interval[0], "%Y-%m-%d %H:%M:%S")
+    #requestDate = datetime.strptime(time_interval[0], "%Y-%m-%d %H:%M:%S")
 
     requestInterval = 1  # seconds
 
+
+    #timeEnd = datetime.now()
+
     while True:
+
+        requestDate = datetime.now() -timedelta(hours=2)
+
+        #requestDate = timeEnd
 
         t1 = datetime.now()
 
@@ -563,14 +621,17 @@ def loss_of_balance_detection(db, time_interval):
             skeletons[k] = np.array(skeletons[k])
             skeletons[k] = np.abs(skeletons[k])
 
-            if np.sum(skeletons[k] > 0.9) > 0:
+            if np.sum(skeletons[k] >= 1) > 0:
                 prediction = 1
             else:
                 prediction = 0
 
+            t = np.max(np.abs(skeletons[k]),axis=0)
+            prediction = np.sqrt(np.sum(t**2,axis=0))
+
             t2 = datetime.now()
 
-            print '{0} | skeleton {1} | Loss of balance: {1:02.1f} % | Time: {2}ms'.\
+            print '{0} | skeleton {1} | Loss of balance: {2} | Time: {3}ms'.\
             format(timeStart, k, 100 * prediction, (t2 - t1).microseconds / 1000)
 
         t2 = datetime.now()
@@ -580,6 +641,6 @@ def loss_of_balance_detection(db, time_interval):
         if (t2 - t1).seconds < requestInterval:
                 time.sleep(requestInterval - (t2 - t1).seconds)
 
-        if datetime.strptime(time_interval[1], "%Y-%m-%d %H:%M:%S") < \
-           datetime.strptime(timeEnd, "%Y-%m-%d %H:%M:%S"):
-               break
+        #if datetime.strptime(time_interval[1], "%Y-%m-%d %H:%M:%S") < \
+        #   datetime.strptime(timeEnd, "%Y-%m-%d %H:%M:%S"):
+        #       break

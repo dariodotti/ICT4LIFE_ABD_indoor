@@ -14,7 +14,7 @@ import conf_file
 
 def daily_motion_training(db,avaliable_sensor):
 
-    time_interval = ['2016-12-07 13:08:00', '2016-12-07 13:10:40']
+    time_interval = ['2017-07-12 08:03:00', '2017-07-12 08:05:00']
 
     if avaliable_sensor['kinect']:
         print 'kinect for daily motion'
@@ -25,10 +25,10 @@ def daily_motion_training(db,avaliable_sensor):
         #extract features from kinect
         hours = 0
         minutes = 0
-        seconds = 2
-        date = '2016-12-07'
+        seconds = 4
+        date = '2017-07-11'
         time_slice_size = [hours, minutes, seconds]
-        global_traj_features,patient_ID = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints,time_slice_size, draw_joints_in_scene=0)
+        global_traj_features,patient_ID = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints,time_slice_size, draw_joints_in_scene=1)
 
         #Get labels from clustering
         #labels_cluster = classifiers.cluster_kmeans(global_traj_features[1],k=3)
@@ -101,12 +101,15 @@ def daily_motion_test(db,avaliable_sensor):
 def as_day_motion(db, avaliable_sensor):
 
     ##get data in the selected time interval from database
-    time_interval = ['2016-12-07 13:08:00', '2016-12-07 13:23:00']
+    time_interval = ['2017-07-27 10:18:00', '2017-07-27 10:18:30']
+
 
     if avaliable_sensor['ambientSensor']:
         ambient_sensor_data = database.read_ambient_sensor_from_db(db.Binary, time_interval)
 
         ambient_sensor_activation = ambient_sensor.as_motion(ambient_sensor_data)
+
+        print ambient_sensor_activation
 
         ##save the results according to table
 
@@ -119,7 +122,8 @@ def as_day_motion(db, avaliable_sensor):
 def as_night_motion(db, avaliable_sensor):
 
     ##get data in the selected time interval from database
-    time_interval = ['2016-12-07 13:06:00', '2016-12-07 13:12:00']
+    time_interval = ['2017-07-11 13:18:00', '2017-07-11 13:18:30']
+
 
     if avaliable_sensor['ambientSensor']:
         ambient_sensor_data = database.read_ambient_sensor_from_db(db.Binary,time_interval)
@@ -202,8 +206,9 @@ def visit_bathroom(db,avaliable_sensor):
 
 def get_freezing_loss_of_balance_detection(db):
 
-    time_interval = ['2017-1-1 0:0:1', '2017-1-2 0:0:1']
-    kinect_global_trajectories.freezing_detection(db, time_interval)
+    time_interval = ['2017-07-12 12:24:00', '2017-07-12 12:27:50']
+
+    #kinect_global_trajectories.freezing_detection(db, time_interval)
 
     kinect_global_trajectories.loss_of_balance_detection(db, time_interval)
 
@@ -223,27 +228,27 @@ def main_nonrealtime_functionalities():
 
 
     #connect to the db
-    db = database.connect_db('my_first_db')
+    db = database.connect_db('local')
     
     #Functionalities for deliverable M12
 
-    kinect_motion_amount,patient_ID = daily_motion_training(db,avaliable_sensor)
+    #kinect_motion_amount,patient_ID = daily_motion_training(db,avaliable_sensor)
 
     day_motion_as_activation = as_day_motion(db, avaliable_sensor)
 
-    night_motion_as_activation = as_night_motion(db, avaliable_sensor)
+    #night_motion_as_activation = as_night_motion(db, avaliable_sensor)
 
     #abnormal_behavior_classification_training(db, avaliable_sensor)
 
     #apathy()
 
     ## ---------CERTH
-    get_freezing_loss_of_balance_detection(db)
+    #get_freezing_loss_of_balance_detection(db)
 
     # summarize HBR, GSR
-    database.summary_MSBand(db, [2017, 2, 21])
+    #database.summary_MSBand(db,[2017, 7, 6])
 
-    database.summarize_events_certh('freezing', path)
+    #database.summarize_events_certh('freezing', path)
     ##-------
 
 
@@ -263,7 +268,7 @@ def main_nonrealtime_functionalities():
 
 
 
-    database.write_output_file(patient_ID,data,'C:/')
+    #database.write_output_file(patient_ID,data,'C:/')
 
 
 

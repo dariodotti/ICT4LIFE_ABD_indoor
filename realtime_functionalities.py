@@ -1,7 +1,6 @@
 import argparse
 from datetime import datetime,timedelta
 from collections import Counter
-
 import numpy as np
 import time
 
@@ -10,62 +9,140 @@ import database
 import conf_file
 import kinect_global_trajectories
 
+print kinect_global_trajectories
 
-def disorientation(db,avaliable_sensor,time_interval):
+
+
+
+def disorientation(db,avaliable_sensor):
 
     ##TEMP cause i dont have realtime
-    time_interval = ['2016-12-07 13:08:00', '2016-12-07 13:10:40']
+    time_interval = ['2017-08-08 13:12:05', '2017-08-08 13:48:10']
 
     if avaliable_sensor['kinect']:
 
         ##get realtime data from db
         kinect_joints = database.read_kinect_joints_from_db(db.Kinect, time_interval, multithread=0)
 
-        hours = 0
-        minute = 0
-        second = 3
+        if len(kinect_joints)>0:
 
-        # extract features from kinect
-        global_traj_features,patient_ID = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints,[hours, minute, second], draw_joints_in_scene=1)
+            hours = 0
+            minute = 0
+            second = 2
 
-        ##get labels from already trained cluster
-        cluster_model = database.load_matrix_pickle('C:/Users/ICT4life/Documents/python_scripts/BOW_trained_data/cl_model_2secWindow_band03.txt')
-        labels_cluster = database.load_matrix_pickle('C:/Users/ICT4life/Documents/python_scripts/BOW_trained_data/cluster_labels.txt')
-        labels_counter_counter = Counter(labels_cluster).most_common(40)
+            # extract features from kinect
+            global_traj_features,patient_ID = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints,[hours, minute, second], draw_joints_in_scene=1)
+
+            ##get labels from already trained cluster
+##            cluster_model = database.load_matrix_pickle('C:/Users/certhadmin/Desktop/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/cl_30_kmeans_model_2secWindow_newVersion.txt')
+##            key_labels = database.load_matrix_pickle('C:/Users/certhadmin/Desktop/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/cluster_30_kmeans_word_newVersion.txt')
+##            key_labels = map(lambda x: x[0],key_labels)
+            cluster_model = database.load_matrix_pickle('C:/Users/certhadmin/Documents/ABD_files/test_cluster_without_outliers/cl_30_kmeans_model_2secWindow_without_outliers.txt')
+            key_labels = database.load_matrix_pickle('C:/Users/certhadmin/Documents/ABD_files/test_cluster_without_outliers/cluster_3_kmeans_word__without_outliers.txt')
+            key_labels = map(lambda x: x[0],key_labels)
 
 
-        #####
-        ##classify spatial-temporal features using bow
-        bow_data = kinect_global_trajectories.bow_traj(global_traj_features[1],cluster_model,labels_counter_counter)
+            #####
+            ##classify spatial-temporal features using bow
+            bow_data = kinect_global_trajectories.bow_traj(global_traj_features[1],cluster_model,key_labels)
+        
+        else:
+            print '--------------- no data in the time interval ---------------------'
+
 
 def unix_time_ms(date):
 
     return (date - datetime(1970,1,1)).total_seconds() * 1000
+
+def model_Fall_skel(nSteps, nVars, RNN, lrnRate, pDrop=0.5):
+
+        from keras.models import Model
+        from keras.layers import Dense, LSTM
+        from keras.layers import Input
+        from keras.optimizers import Nadam
+
+
+        if RNN[1]:
+            model_in = Input(batch_shape=(RNN[2], nSteps, nVars))
+        else:
+            model_in = Input(shape=(nSteps, nVars))
+
+        x = LSTM(units=RNN[0],
+                 implementation=0,
+                 return_sequences=False,
+                 stateful=RNN[1],
+                 unroll=True,
+                 dropout=pDrop,
+                 recurrent_dropout=pDrop,
+                 activation='tanh')(model_in)
+
+        x = Dense(units=RNN[0],
+                  activation='tanh')(x)
+
+        x = Dense(units=2,
+                  activation='softmax')(x)
+
+        model_out = x
+
+
+
+        model = Model(inputs=model_in, outputs=model_out)
+
+        model.compile(loss='binary_crossentropy',    # binary_crossentropy, categorical
+                      optimizer=Nadam(lr=lrnRate),   # Nadam, Adam, RMSprop, SGD
+                      sample_weight_mode='None')
+
+        model.summary(line_length=100)
+
+
+        return model
+
+
+def load_model_weights(model, path):
+
+    model.load_weights(path)
+
+    return model
 
 
 def fall_detection(db): #, available_sensor):
 
     #if available_sensor['kinect']:
     colKinect = db.Kinect
-    requestDate = datetime.now()
+    #requestDate = '2017-07-11 13:08:00'
+    #requestDate = datetime.strptime(requestDate, "%Y-%m-%d %H:%M:%S")
 
     requestInterval = 1  # seconds
     fps = 30
 
     jointsOfInterest = [3, 20, 8, 9, 10, 4, 5, 6, 16, 17, 18, 12, 13, 14]
 
-    model = classifiers.model_Fall_skel(nSteps=fps, nVars=len(jointsOfInterest) * 3,
+    model = model_Fall_skel(nSteps=fps, nVars=len(jointsOfInterest) * 3,
                                         RNN=[500, False, 1],
                                         lrnRate=10**-4, pDrop=0.2)
 
-    #model = classifiers.load_model_weights(model, 'path to model weights')
+    model = load_model_weights(model, 'C:/Users/certhadmin/Desktop/ICT4LIFE_ABD_indoor/BOW_trained_data/fall_sk_0.20.hdf5')
+
+    #requestDate = datetime.now() -timedelta(hours=2)
 
     while True: # enter a stopping criterion
 
+        print "--------------------------------------\r\n"
+
+        requestDate = datetime.now() - timedelta(hours=2) - timedelta(seconds=1)
+        print requestDate
+
         t1 = datetime.now()
+        
 
         timeStart = requestDate.strftime("%Y-%m-%d %H:%M:%S")
+
         timeEnd = (requestDate + timedelta(seconds=requestInterval)).strftime("%Y-%m-%d %H:%M:%S")
+        #timeStart=timeEnd
+
+        print timeStart
+        print timeEnd
+
 
         d = database.read_kinect_data_from_db(collection=colKinect,
                                               time_interval=[timeStart, timeEnd],
@@ -73,10 +150,11 @@ def fall_detection(db): #, available_sensor):
                                               skeletonType='raw',
                                               exclude_columns=['ColorImage', 'DepthImage',
                                                                'InfraImage', 'BodyImage'])
-
+        print t1
         hasSkeleton = [False, False, False, False, False, False]
         idSkeleton = [0, 0, 0, 0, 0, 0]
         skeletons = []
+        print len(d)
 
         # read data
         for i in range(len(d)):
@@ -152,6 +230,8 @@ def fall_detection(db): #, available_sensor):
 
             requestDate += timedelta(seconds=requestInterval)
 
+            print requestDate
+
         else:
 
             t2 = datetime.now()
@@ -161,9 +241,155 @@ def fall_detection(db): #, available_sensor):
             print '{0} | Not enough data ({1})'.format(timeStart, len(d))
 
         if (t2 - t1).seconds < requestInterval:
-                time.sleep(requestInterval - (t2 - t1).seconds)
+            time.sleep(requestInterval - (t2 - t1).seconds)
+        else:
+            print 'Delayed !'
 
 
+def model_Fall_acc(nSteps, nVars, RNN, lrnRate, pDrop=0.5):
+
+        from keras.models import Model
+        from keras.layers import Dense, LSTM
+        from keras.layers import Input
+        from keras.optimizers import Nadam
+
+
+        if RNN[1]:
+            model_in = Input(batch_shape=(RNN[2], nSteps, nVars))
+        else:
+            model_in = Input(shape=(nSteps, nVars))
+
+        x = LSTM(units=RNN[0],
+                 implementation=0,
+                 return_sequences=False,
+                 stateful=RNN[1],
+                 unroll=True,
+                 dropout=pDrop,
+                 recurrent_dropout=pDrop,
+                 activation='tanh')(model_in)
+
+        x = Dense(units=RNN[0],
+                  activation='tanh')(x)
+
+        x = Dense(units=2,
+                  activation='softmax')(x)
+
+        model_out = x
+
+
+
+        model = Model(inputs=model_in, outputs=model_out)
+
+        model.compile(loss='binary_crossentropy',    # binary_crossentropy, categorical
+                      optimizer=Nadam(lr=lrnRate),   # Nadam, Adam, RMSprop, SGD
+                      sample_weight_mode='None')
+
+        model.summary(line_length=100)
+
+
+        return model
+
+
+def model_Festination(nSteps, nVars, RNN, lrnRate, pDrop=0.5):
+
+        from keras.models import Model
+        from keras.layers import Input, Dense, LSTM
+        from keras.optimizers import Nadam, Adam, RMSprop, SGD
+
+
+        if RNN[1]:
+            model_in = Input(batch_shape=(RNN[2], nSteps, nVars))
+        else:
+            model_in = Input(shape=(nSteps, nVars))
+
+        x = LSTM(units=RNN[0],
+                 implementation=0,
+                 return_sequences=True,
+                 stateful=RNN[1],
+                 unroll=True,
+                 dropout=pDrop,
+                 recurrent_dropout=pDrop,
+                 activation='linear')(model_in)
+
+        x = LSTM(units=RNN[0],
+                 implementation=0,
+                 return_sequences=False,
+                 stateful=RNN[1],
+                 unroll=True,
+                 dropout=pDrop,
+                 recurrent_dropout=pDrop,
+                 activation='linear')(x)
+
+        x = Dense(units=RNN[0],
+                  activation='linear')(x)
+
+        x = Dense(units=2,
+                  activation='softmax')(x)
+
+        model_out = x
+
+
+        model = Model(inputs=model_in, outputs=model_out)
+
+        model.compile(loss='binary_crossentropy',    # binary_crossentropy, categorical
+                      optimizer=Nadam(lr=lrnRate),   # Nadam, Adam, RMSprop, SGD
+                      sample_weight_mode='None')
+
+        model.summary(line_length=100)
+
+
+        return model
+
+
+def model_LossOfBalance(nSteps, nVars, RNN, lrnRate, pDrop=0.5):
+
+    from keras.models import Model
+    from keras.layers import Input, Dense, LSTM
+    from keras.optimizers import Nadam, Adam, RMSprop, SGD
+
+
+    if RNN[1]:
+        model_in = Input(batch_shape=(RNN[2], nSteps, nVars))
+    else:
+        model_in = Input(shape=(nSteps, nVars))
+
+    x = LSTM(units=RNN[0],
+             implementation=0,
+             return_sequences=True,
+             stateful=RNN[1],
+             unroll=True,
+             dropout=pDrop,
+             recurrent_dropout=pDrop,
+             activation='linear')(model_in)
+
+    x = LSTM(units=RNN[0],
+             implementation=0,
+             return_sequences=False,
+             stateful=RNN[1],
+             unroll=True,
+             dropout=pDrop,
+             recurrent_dropout=pDrop,
+             activation='linear')(x)
+
+    x = Dense(units=RNN[0],
+              activation='linear')(x)
+
+    x = Dense(units=2,
+              activation='softmax')(x)
+
+    model_out = x
+
+
+    model = Model(inputs=model_in, outputs=model_out)
+
+    model.compile(loss='binary_crossentropy',    # binary_crossentropy, categorical
+                  optimizer=Nadam(lr=lrnRate),   # Nadam, Adam, RMSprop, SGD
+                  sample_weight_mode='None')
+
+    model.summary(line_length=100)
+
+
+    return model
 
 
 def main_realtime_functionalities():
@@ -178,18 +404,18 @@ def main_realtime_functionalities():
     avaliable_sensor = conf_file.get_available_sensors()
 
     # connect to the db
-    db = database.connect_db('my_first_db')
+    db = database.connect_db('local')
 
     # Real time Functionalities for deliverable M12
 
     #consider the last 20 seconds from now
-    time_end = datetime.now()
-    time_begin= time_end-timedelta(seconds=20)
+    #time_end = datetime.now()
+    #time_begin= time_end-timedelta(seconds=20)
 
-    time_end = unicode(time_end.replace(microsecond=0))
-    time_begin = unicode(time_begin.replace(microsecond=0))
+    #time_end = unicode(time_end.replace(microsecond=0))
+    #time_begin = unicode(time_begin.replace(microsecond=0))
 
-    disorientation(db,avaliable_sensor,[time_begin,time_end])
+    disorientation(db,avaliable_sensor)
 
     ##---- CERTH --
     #fall_detection(db)
@@ -199,4 +425,6 @@ def main_realtime_functionalities():
 
 
 if __name__ == '__main__':
+
+
     main_realtime_functionalities()

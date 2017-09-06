@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import cv2
+from collections import Counter
 
 
 def bar_plot_occupancy_selectedAreas_over_time(data):
@@ -327,3 +328,24 @@ def draw_joints_and_tracks(body_points, scene_patches, scene):
         except:
             print 'traj coordinates not available'
             continue
+
+def plot_word_distribution(keys_labels,data):
+
+    fig, ax = plt.subplots()
+
+    bins = np.arange(0,len(keys_labels))
+    width = 0.35       # the width of the bars
+
+    confused_data = ax.bar(bins,data[0],width, color='b')
+
+    labels = []
+    
+    for x in keys_labels:
+        labels.append(str(x))
+
+    ax.set_xticks(bins + width / 2)
+    ax.set_xticklabels(labels)
+
+    plt.show()
+        
+    

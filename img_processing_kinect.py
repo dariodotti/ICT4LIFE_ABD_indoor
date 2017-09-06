@@ -105,7 +105,7 @@ def histogram_oriented_tracklets(cube):
 
     orientation_intervals=[[range(0,45)],[range(45,90)],[range(90,135)],[range(135,180)],[range(180,225)],[range(225,270)],\
                            [range(270,315)],[range(315,360)]]
-    magnitude_intervals = [[range(0,10)],[range(10,40)],[range(40,81)]]
+    magnitude_intervals = [[range(0,2)],[range(2,6)],[range(6,81)]]
 
     hot_matrix = np.zeros((len(orientation_intervals),len(magnitude_intervals)))
 
@@ -113,7 +113,7 @@ def histogram_oriented_tracklets(cube):
 
     if len(list(set(cube[:,2]))) == 1:
         k = cube[0,2]
-        step = 3
+        step = 2
 
 
         for i in xrange(0,len(cube)-step):
@@ -123,6 +123,7 @@ def histogram_oriented_tracklets(cube):
 
             orientation = int(degrees(atan2(dy,dx))%360)
             magn = int(np.sqrt((np.power(dx,2)+np.power(dy,2))))
+            #print magn
 
 
             for c_interval,o_interval in enumerate(orientation_intervals):
@@ -141,8 +142,10 @@ def histogram_oriented_tracklets(cube):
                 print 'orientation or magn not in the intervals'
                 print orientation,magn
 
-
-    return hot_matrix.reshape((len(orientation_intervals)*len(magnitude_intervals)))
+    #print hot_matrix
+    hot_matrix_reshaped = hot_matrix.reshape((len(orientation_intervals)*len(magnitude_intervals)))
+    
+    return hot_matrix_reshaped
 
 
 def get_velocity_curvature_acceleration(cube,need_correction):

@@ -1,4 +1,5 @@
 from pymongo import MongoClient as Connection
+import pymongo
 import numpy as np
 from datetime import datetime
 import cPickle
@@ -16,6 +17,7 @@ def connect_db(name_db):
 
     con = Connection('localhost', 27017)
     db = con[name_db]
+    print db
 
     return db
 
@@ -91,7 +93,7 @@ def read_kinect_data_from_db(collection, time_interval, session, skeletonType, e
         raise RuntimeError('skeletonType must be one of raw, rawColor, rawGray, ' +
                             'filtered, filteredColor, filteredGray')
 
-    frames = read_data_from_db(collection, time_interval, session, exclude_columns)
+    frames = read_data_from_db_tomas(collection, time_interval, session, exclude_columns)
 
     # Parse data
     #
@@ -141,9 +143,12 @@ def read_kinect_joints_from_db(kinect_collection,time_interval,multithread):
     begin_period = datetime.strptime(time_interval[0], '%Y-%m-%d %H:%M:%S')
     end_period = datetime.strptime(time_interval[1], '%Y-%m-%d %H:%M:%S')
 
+    ##find all the data in the database
+    #frame_with_joints = kinect_collection.find({})
 
-    #frame_with_joints = kinect.find({"BodyFrame.isTracked": True})
-    frame_with_joints = kinect_collection.find({})
+    ## start to find from the most recent ##
+    frame_with_joints =kinect_collection.find().sort([('_id',pymongo.ASCENDING)])#pymongo.DESCENDING
+    
 
 
     joint_points = []
@@ -202,14 +207,22 @@ def read_kinect_joints_from_db(kinect_collection,time_interval,multithread):
                         for j in body_frame['skeleton']['rawGray']:
                             frame_body_joints[i,0] = j['x']
                             frame_body_joints[i,1] = j['y']
+                            #frame_body_joints[i,2] = j['raw']['z']
+                            i+=1
+                        i = 1
+                        for j in body_frame['skeleton']['raw']:
                             frame_body_joints[i,2] = j['z']
                             i+=1
+
                         joint_points.append(frame_body_joints)
 
             elif f['_id'] > end_period:
                 break
+##            elif f['_id'] < begin_period:
+##                break
 
-    #print joint_points[0]
+
+    #joint_points = joint_points[::-1]
     print 'retrieved trajectory matrix size: ', np.array(joint_points).shape
     return joint_points
 
