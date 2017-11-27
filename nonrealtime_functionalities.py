@@ -9,6 +9,8 @@ import visualization
 import classifiers
 import conf_file
 
+import requests
+import socket
 
 
 
@@ -215,6 +217,10 @@ def get_freezing_loss_of_balance_detection(db):
 
 
 def main_nonrealtime_functionalities():
+
+    # Perform reidentification
+    json_data = {"init_hour": "11:00:00", "init_date": "23-11-2017", "fin_hour": "12:00:00", "fin_date": "23-11-2017"}
+    r = requests.post("http://"+str(socket.gethostbyname(socket.gethostname()))+":8000/get_all_data/", json=json_data)
 
     ##INPUT: path of configuration file for available sensor
     parser = argparse.ArgumentParser(description='path to conf file')
