@@ -225,7 +225,7 @@ def main_nonrealtime_functionalities():
     ##INPUT: path of configuration file for available sensor
     parser = argparse.ArgumentParser(description='path to conf file')
     parser.add_argument('path_confFile')
-    args=parser.parse_args()
+    args = parser.parse_args()
 
     ##initialize and parse config file
     conf_file.parse_conf_file(args.path_confFile)
@@ -269,8 +269,21 @@ def main_nonrealtime_functionalities():
     ## at the end of the day summarize and write all the results in a file that will be uploaded into amazon web services
 
     ##TODO: complete the method that now are added artificially (i.g. confusion , leave the house)
-    data = ['daily_motion: ',kinect_motion_amount,'as_day_motion: ', day_motion_as_activation, 'as_night_motion: ', night_motion_as_activation,
-            'visit_bathroom: ',nr_visit, 'confusion_behavior_detection: ',{'number':2,'beginning':[],'duration':[]},'leave the house: ' , '1','leave_house_confused: ','0']
+    #data = ['daily_motion: ',kinect_motion_amount,'as_day_motion: ', day_motion_as_activation, 'as_night_motion: ', night_motion_as_activation,
+    #        'visit_bathroom: ',nr_visit, 'confusion_behavior_detection: ',{'number':2,'beginning':[],'duration':[]},'leave the house: ' , '1','leave_house_confused: ','0']
+
+
+    # Matching person band with uuid and send summarization for one patient
+    path_to_lambda = ""
+    client = MongoClient('localhost', 27017)
+    dbIDs = client['local']['BandPersonIDs']
+    uuids = dbIDs.find()
+    for uuid in uuids:
+        if uuid["SensorID"] == personMSBand:
+            uuid_person = uuid["PersonID"]
+            final_sumarization = {"date": time.strftime("%Y-%m-%d"), "daily_motion": kinect_motion_amount, "as_day_motion": day_motion_as_activation, "as_night_motion": night_motion_as_activation, "freezing": freezing_analysis, "festination": festination_analysis, "loss_of_balance": loss_of_balance_analisys, "fall_down": fall_down_analysis, "visit_bathroom": nr_visit, "confusion_behaviour_detection": confusion_analysis, "leave_the_house": lh_number, "leave_house_confused": lhc_number}
+            with open(path_to_lambda+uuid_person+'.json', 'w') as outfile:
+                json.dump(final_sumarization, outfile)
 
 
 
