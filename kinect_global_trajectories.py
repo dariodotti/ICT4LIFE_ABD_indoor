@@ -6,6 +6,7 @@ from scipy.ndimage.filters import gaussian_filter
 from lxml import etree
 from collections import Counter
 import time
+import peakutils
 
 import img_processing_kinect as my_img_proc
 import database
@@ -465,137 +466,354 @@ def bow_traj(data_matrix,cluster_model,key_labels):
     return hist
 
 
+def load_model_weights(model, path):
+
+    model.load_weights(path)
+
+    return model
+
+
+def model_Freeze(nSteps, nVars, RNN, lrnRate, pDrop=0.5):
+
+    from keras.models import Model
+    from keras.layers import Dense, LSTM, Input
+    from keras.optimizers import Nadam
+
+
+    if RNN[1]:
+        model_in = Input(batch_shape=(RNN[2], nSteps, nVars))
+    else:
+        model_in = Input(shape=(nSteps, nVars))
+
+    x = LSTM(units=RNN[0],
+             implementation=0,
+             return_sequences=False,
+             stateful=RNN[1],
+             unroll=True,
+             dropout=pDrop,
+             recurrent_dropout=pDrop,
+             activation='tanh')(model_in)
+
+    x = Dense(units=RNN[0],
+              activation='tanh')(x)
+
+    x = Dense(units=2,
+              activation='softmax')(x)
+
+    model_out = x
 
 
 
+    model = Model(inputs=model_in, outputs=model_out)
+
+    model.compile(loss='binary_crossentropy',
+                  optimizer=Nadam(lr=lrnRate),
+                  sample_weight_mode='None')
+
+    model.summary(line_length=100)
+
+
+    return model
+
+
+def computePSD(data, sr, window):
+
+        fc = np.fft.fft(data * window)
+        n = (fc.size / 2) + 1
+
+        fc_real = fc[0:n]
+
+        psd = (1.0 / (sr * np.sum(window ** 2))) * np.abs(fc_real) ** 2
+
+        angle = np.unwrap(np.angle(fc_real)) * (np.pi / 180.0)
+        freq = np.linspace(0, sr / 2.0, psd.size)
+
+
+        return fc, fc_real, psd, angle, freq
+
+
+def filter_predictions_sum(predictedY, filter_len, filter_val, zero_out=False):
+
+    """
+
+    Filter predictions to reduce false positives
+
+    ------------------------------------------------------------------------------------------
+    Parameters:
+
+    predictedY: Matrix
+        The predicted labels
+
+    filter_len: int
+        The filter length
+
+    filter_val: int
+        The filter threshold
+
+    ------------------------------------------------------------------------------------------
+
+    """
+
+    import copy
+
+
+    predY = copy.deepcopy(predictedY)
+    s = np.zeros_like(predY)
+
+    n = len(predY)
+    m = np.floor(1.0 * filter_len / 2).astype(int)
+
+    for i in range(m, n - m + 1):
+        s[i - m : i + m + 1] = np.average( predictedY[i - m : i + m + 1] )
+        if np.sum( predictedY[i - m : i + m + 1] ) >= filter_val:
+            predY[i] = 1
+        else:
+            if zero_out:
+                predY[i] = 0
+
+
+    return predY, s
+
+
+def freezing_detection(db):
+
+    requestInterval = 3  # seconds
+    fps = 32
+
+    msSeqThreshold = 360
+
+    model = model_Freeze(nSteps=9, nVars=34 * 4,
+                         RNN=[1000, False, 1],
+                         lrnRate=10**-4, pDrop=0.5)
+
+    model = load_model_weights(model, '\\freeze_1.16.hdf5')
+
+    requestDate = '2017-09-08 10:56:34'
+    requestDate = datetime.strptime(requestDate, "%Y-%m-%d %H:%M:%S")
+
+    # =======================================================================
+
+    t1 = datetime.now()
+
+    # get data for the last day
+    timeStart = (requestDate - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    timeEnd = requestDate.strftime("%Y-%m-%d %H:%M:%S")
+
+    d_all = database.read_MSBand_from_db(collection=db.MSBand,
+                                         time_interval=[timeStart, timeEnd],
+                                         session='')
+
+    # =======================================================================
+
+    results = dict()
+    for key in d_all.keys():
+
+        d = d_all[key]
+        d = np.array(d)
+
+        ts = np.array(d[:, 1], dtype=datetime)
+        acc = np.array(d[:, [2, 3, 4]], dtype=float)
+        acc = np.hstack((acc, np.sqrt(np.sum(acc**2, axis=1)).reshape(-1, 1)))
+        features = []
+
+        # loop through data
+        time1 = ts[0]
+        time2 = time1 + timedelta(seconds=3)
+
+        while time2 < datetime.strptime(timeEnd, "%Y-%m-%d %H:%M:%S"):
+
+            ind = np.bitwise_and(ts >= time1, ts < time2)
+
+            ts_window = ts[ind]
+            acc_window = acc[ind]
+
+            for i in range(ts_window.shape[0]):
+                ts_window[i] = (ts_window[i] - datetime(1970,1,1)).total_seconds() * 1000
+
+            ts_window = np.array(ts_window, dtype=float)
+
+            feat_window = []
+
+            # if there are enough data (>15 fps)
+            if acc_window.shape[0] >= requestInterval * 15:
+
+                data_interp = np.zeros((requestInterval * fps, 4))
+
+                # interpolate data if needed
+                if acc_window.shape[0] != requestInterval * fps:
+
+                    for j in range(4):
+                        new_ts = np.linspace(ts_window[0], ts_window[-1], requestInterval * fps)
+                        data_interp[:, j] = np.interp(new_ts, ts_window, acc_window[:, j])
+
+                else:
+
+                    data_interp = acc_window
+
+                # extract features
+                for j in range(4):
+
+                    d_norm = data_interp[:, j]
+                    d_norm = d_norm - np.mean(d_norm)
+
+                    _, _, psd, _, freq = computePSD(d_norm, fps, np.ones(data_interp.shape[0]))
+                    te = np.sum(psd)
+
+                    feat = psd / te
+
+                    ind1 = np.nonzero(freq >= 0.5)[0][0]
+                    ind2 = np.nonzero(freq <= 12)[0][-1]
+
+                    feat = feat[ind1 : ind2]
+
+                    feat_window.append(feat)
+
+                features.append([ts[ind][0], ts[ind][-1], ts_window[0], ts_window[-1],
+                                 ts_window.shape[0], feat_window])
+
+            time1 = time1 + timedelta(seconds=1/3.0)
+            time2 = time1 + timedelta(seconds=3)
+
+        t2 = datetime.now()
+
+        del ind, ts_window, acc_window, i, feat_window, data_interp, new_ts, d_norm
+        del feat, psd, freq, te, j, ind1, ind2
+
+        print 'Feature extraction {0}ms'.format((t2 - t1).microseconds / 1000)
+
+        # create sequences
+        seq = []
+        k = -1
+        for i in range(1, len(features)):
+            if features[i][2] - features[i - 1][2] > msSeqThreshold:
+                seq.append([])
+                k = k + 1
+
+            seq[k].append(i)
+
+        seq_filtered = []
+        for i in range(len(seq)):
+            if len(seq[i]) >= 9:
+                r = range(seq[i][0], seq[i][-1] - 9 + 2)
+                seq_filtered.append(r)
+
+        del i, k, r
+
+        # predict and filter results
+        data_filtered = []
+        predictions = []
+        filtered_predictions = []
+        for i in range(len(seq_filtered)):
+
+            predictions.append([])
+            for j in seq_filtered[i]:
+                data = []
+                for k in range(9):
+                    data.append( np.hstack(features[j + k][5]) )
+
+                data = np.array(data)
+                data = np.reshape(data, (1, 9, 34 * 4))
+
+                data_filtered.append([j, features[j][0], data])
+
+                prediction = model.predict(data)
+                predictions[i].append( prediction[0, 1] )
+
+            predictions[i] = np.array(predictions[i])
+            predictions[i] = filter_predictions_sum(predictions[i], 4, 2, True)[0]
+
+            predictions[i][predictions[i] < 0.9] = 0
+            filtered_predictions.append( predictions[i] )
+
+        # summarize events
+        events = []
+        pos = 0;
+        for i in range(len(filtered_predictions)):
+            events.append([])
+            start = -1
+            end = -1
+            for j in range(filtered_predictions[i].shape[0]):
+
+                if start == -1 and filtered_predictions[i][j] == 1:
+                    start = pos
+
+                if start > -1:
+                    if filtered_predictions[i][j] == 0:
+                        end = pos - 1
+                    if j == filtered_predictions[i].shape[0] - 1:
+                        end = pos
+
+                if start > -1 and end > -1:
+                    events[i].append([start, end])
+                    start = -1
+                    end = -1
+
+                pos = pos + 1
+
+        events_sum = []
+        for i in range(len(events)):
+
+            events_sum.append([])
+            for j in range(len(events[i])):
+
+                start = events[i][j][0]
+                end = events[i][j][1]
+
+                td = data_filtered[end][1] - data_filtered[start][1]
+
+                events_sum[i].append([data_filtered[start][1], td.total_seconds()])
+
+            try:
+                events_sum.remove([])
+            except:
+                "No events"
+
+        results[key] = events_sum
+
+
+    return results
 
 
 def unix_time_ms(date):
 
-    from datetime import datetime
-
     return (date - datetime(1970,1,1)).total_seconds() * 1000
 
-def freezing_detection(db, time_interval):
 
+def festination(db):
 
-    colMSBand = db.MSBand
-    requestDate = datetime.strptime(time_interval[0], "%Y-%m-%d %H:%M:%S")
-
-    requestInterval = 4  # seconds
     fps = 30
 
-    model = classifiers.model_Freezing(nSteps=requestInterval*fps, nVars=4,
-                                       RNN=[200, False, 1],
-                                       lrnRate=10**-4, pDrop=0.2)
+    requestDate = '2017-12-07 09:27:00'
+    requestDate = datetime.strptime(requestDate, "%Y-%m-%d %H:%M:%S")
 
-    #model = classifiers.load_model_weights(model, 'path to model weights')
+    # =======================================================================
 
-    while True:
+    # get data for the last day
+    timeStart = (requestDate - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    timeEnd = requestDate.strftime("%Y-%m-%d %H:%M:%S")
 
-        t1 = datetime.now()
-
-        timeStart = requestDate.strftime("%Y-%m-%d %H:%M:%S")
-        timeEnd = (requestDate + timedelta(seconds=requestInterval)).strftime("%Y-%m-%d %H:%M:%S")
-
-        #d = database.read_MSBand_from_db(collection=colMSBand,
-        #                                 time_interval=[timeStart, timeEnd],
-        #                                 session='')
-
-
-
-        ts = []
-        data = []
-        for i in range(len(d)):
-            ts.append( unix_time_ms(d[i][1]) )
-            data.append( d[i][2:5] )
-
-        ts = np.array(ts)
-        data = np.array(data)
-
-        # if there are enough available data (>14 fps)
-        if data.shape[0] >= requestInterval * 14:
-
-            # add magnitude
-            data = np.hstack((data, np.sqrt(np.sum(data**2, axis=1)).reshape(-1, 1)))
-
-            data_interp = np.zeros((requestInterval * 30 + 1, 4))
-
-            # interpolate data if needed
-            if data.shape[0] != requestInterval * 30 + 1:
-
-                for j in range(4):
-
-                    new_ts = np.linspace(ts[0], ts[-1], requestInterval * 30 + 1)
-                    data_interp[:, j] = np.interp(new_ts, ts, data[:, j])
-
-            else:
-
-                data_interp = data
-
-            # normalize data
-            data_interp = np.diff(data_interp, axis=0)
-
-            data_interp = data_interp.reshape((1, requestInterval * fps, 4))
-
-            prediction = model.predict(data_interp, batch_size=64)
-
-            t2 = datetime.now()
-
-            print '{0} | Freeze: {1:02.1f} % | Time: {2}ms'.\
-            format(timeStart, 100 * prediction[0, 1], (t2 - t1).microseconds / 1000)
-
-            requestDate += timedelta(seconds=requestInterval)
-
-        else:
-
-            print '{0} - {1}: Not enough data ({2})'.format(timeStart, timeEnd, len(d))
-
-            t2 = datetime.now()
-
-            requestDate += timedelta(seconds=requestInterval)
-
-        if (t2 - t1).seconds < requestInterval:
-                time.sleep(requestInterval - (t2 - t1).seconds)
-
-        if datetime.strptime(time_interval[1], "%Y-%m-%d %H:%M:%S") < \
-           datetime.strptime(timeEnd, "%Y-%m-%d %H:%M:%S"):
-               break
-
-
-
-def loss_of_balance_detection(db, time_interval):
-
-
-    colKinect = db.Kinect
-    #requestDate = datetime.strptime(time_interval[0], "%Y-%m-%d %H:%M:%S")
-
-    requestInterval = 1  # seconds
-
-
-    #timeEnd = datetime.now()
-
-    while True:
-
-        requestDate = datetime.now() -timedelta(hours=2)
-
-        #requestDate = timeEnd
-
-        t1 = datetime.now()
-
-        timeStart = requestDate.strftime("%Y-%m-%d %H:%M:%S")
-        timeEnd = (requestDate + timedelta(seconds=requestInterval)).strftime("%Y-%m-%d %H:%M:%S")
-
-        d = database.read_kinect_data_from_db(collection=colKinect,
+    d_all = database.read_kinect_data_from_db(collection=db.Kinect,
                                               time_interval=[timeStart, timeEnd],
                                               session='',
-                                              skeletonType='raw',
+                                              skeletonType='filtered',
                                               exclude_columns=['ColorImage', 'DepthImage',
                                                                'InfraImage', 'BodyImage'])
+
+    d_all_MSband = database.read_MSBand_from_db_asDict(collection=db.MSBand,
+                                                       time_interval=[timeStart, timeEnd],
+                                                       session='')
+
+    results = dict()
+    for key in d_all.keys():
+
+        results[key] = dict()
+
+        d = d_all[key]
 
         hasSkeleton = [False, False, False, False, False, False]
         idSkeleton = [0, 0, 0, 0, 0, 0]
         skeletons = []
+        ts_skeletons = []
 
         # read data
         for i in range(len(d)):
@@ -608,39 +826,141 @@ def loss_of_balance_detection(db, time_interval):
                 if hasSkeleton[j] == False and d[i][j] != []:
                     idSkeleton[j] = m + 1
                     hasSkeleton[j] = True
+                    ts_skeletons.append([])
                     skeletons.append([])
 
                 if hasSkeleton[j] == True and d[i][j] == []:
                     hasSkeleton[j] == False
 
                 if d[i][j] != []:
-                    skeletons[idSkeleton[j] - 1].append([d[i][j][2], d[i][j][3]])
+                    ts_skeletons[idSkeleton[j] - 1].append( unix_time_ms(d[i][j][1]) )
+                    skeletons[idSkeleton[j] - 1].append( [d[i][j][1], np.array(d[i][j][6])] )
 
-        for k in range(len(skeletons)):
+        for j in range(len(skeletons)):
+            ts_skeletons[j] = np.array(ts_skeletons[j])
 
-            skeletons[k] = np.array(skeletons[k])
-            skeletons[k] = np.abs(skeletons[k])
+        idSkeleton = np.array(idSkeleton)
 
-            if np.sum(skeletons[k] >= 1) > 0:
-                prediction = 1
-            else:
-                prediction = 0
 
-            t = np.max(np.abs(skeletons[k]),axis=0)
-            prediction = np.sqrt(np.sum(t**2,axis=0))
+        # calculate magnitude and find peaks
+        acc = []
+        ts_acc = []
+        for band_key in d_all_MSband.keys():
 
-            t2 = datetime.now()
+            d_band = d_all_MSband[band_key]
 
-            print '{0} | skeleton {1} | Loss of balance: {2} | Time: {3}ms'.\
-            format(timeStart, k, 100 * prediction, (t2 - t1).microseconds / 1000)
+            for band_i in range(len(d_band)):
+                ts_acc.append( unix_time_ms(d_band[band_i]['accTS']) )
+                acc.append([
+                    d_band[band_i]['accTS'],
+                    np.sqrt(d_band[band_i]['accX']**2 + \
+                            d_band[band_i]['accY']**2 + \
+                            d_band[band_i]['accZ']**2)])
 
-        t2 = datetime.now()
+            mag = np.array(np.array(acc)[:, 1], dtype=float)
 
-        requestDate += timedelta(seconds=requestInterval)
+            # detect peaks
+            peaks = peakutils.indexes(mag, thres=0, min_dist=fps / 6)
+            ind = mag[peaks] <= 1.2
+            peaks = np.delete(peaks, np.nonzero(ind)[0])
+			
+			# count steps per second
+            cad = []
+            w_len = fps * 2
+            w_step = 1
+            for i in range(0, mag.shape[0] - w_len, w_step):
+                ind = np.arange(i, i + w_len)
+                steps = np.sum(np.bitwise_and(peaks >= ind[0], peaks <= ind[-1]))
+                cad.append( [acc[i][0], acc[i + w_len][0], steps, steps * fps / float(w_len)] )
 
-        if (t2 - t1).seconds < requestInterval:
-                time.sleep(requestInterval - (t2 - t1).seconds)
+            sps = np.array(np.array(cad)[:, 3], dtype=float)
+            sps_x = np.arange(1, mag.shape[0] + 1 - w_len, w_step) + w_len / 2
+			
+			# get skeleton position at each magnitude peak
+            body_pos = []
+            thr = 30 # ms
+            for i in range(len(skeletons)): # which skeleton? (re-id)
 
-        #if datetime.strptime(time_interval[1], "%Y-%m-%d %H:%M:%S") < \
-        #   datetime.strptime(timeEnd, "%Y-%m-%d %H:%M:%S"):
-        #       break
+                body_pos.append([])
+                for j in range(peaks.shape[0]):
+
+                    diff = np.abs(ts_skeletons[i] - ts_acc[peaks[j]])
+                    min_pos = np.argmin(diff)
+                    min_val = diff[min_pos]
+
+                    if min_val <= thr:
+                        body_pos[i].append( skeletons[i][min_pos][1][0, [0,1,2]] )
+                    else:
+                        body_pos[i].append( None )
+
+            # measure distance between peaks
+            dist = []
+            for i in range(len(skeletons)):
+
+                dist.append([])
+                for j in range(peaks.shape[0] - 1):
+                    if (body_pos[i][j] is not None) and (body_pos[i][j + 1] is not None):
+                        dist[i].append( np.sqrt(np.sum((body_pos[i][j + 1] - body_pos[i][j])**2)) )
+                    else:
+                        dist[i].append( np.NaN )
+
+                dist[i] = np.array(dist[i])
+
+            dist_x = peaks[:-1] + np.diff(peaks) + 1
+			
+			events = []
+            for i in range(len(skeletons)):
+
+                events.append([])
+
+                ind1 = dist_x[dist[i] < 0.4]
+                ind2 = sps_x[sps > 2]
+
+                ind = np.intersect1d(ind1, ind2)
+
+                jMax = np.minimum(int(ind.shape[0]), int(ind1.shape[0]))
+
+                j = 0
+                seq = []
+                while j < jMax:
+
+                    ind_start = int(np.nonzero(ind1 == ind[j])[0])
+                    kMax = np.minimum(ind[j:].shape[0], ind1[ind_start:].shape[0])
+
+                    seq.append([])
+                    count = 0
+                    for k in range(kMax):
+                        if ind[j + k] == ind1[ind_start + k]:
+                            seq[-1].append( ind[j + k] )
+                            count = count + 1
+                        else:
+                            break
+
+                    j = j + count
+
+                events[i] = seq
+
+            events_sum = []
+            for i in range(len(events)):
+
+                events_sum.append([])
+                for j in range(len(events[i])):
+
+                    start = events[i][j][0]
+                    end = events[i][j][-1]
+
+                    td = acc[end][0] - acc[start][0]
+
+                    events_sum[i].append([acc[start][0], td.total_seconds()])
+
+                try:
+                    events_sum.remove([])
+                except:
+                    "No events"
+
+
+            results[key][band_key] = events_sum
+
+
+    return results
+	
