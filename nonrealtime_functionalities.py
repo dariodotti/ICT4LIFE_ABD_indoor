@@ -50,6 +50,10 @@ def daily_motion_training(db,avaliable_sensor):
         ##make it dictionary
         kinect_motion_amount = {'stationary': kinect_motion_amount[0][0],'slow_mov': kinect_motion_amount[0][1],'fast_mov': kinect_motion_amount[0][2]}
 
+    else:
+        print '--------------- no data in the time interval ---------------------'
+        kinect_motion_amount = 0
+        #patient_ID = 0
 
 
     if avaliable_sensor['zenith']:
