@@ -18,7 +18,7 @@ def logistic_regression_train(data,labels,save_model):
 
 
 def logistic_regression_predict(test_data):
-    return __logistic.predict(test_data)
+    return __logistic.predict(test_data), __logistic.decision_function(test_data)
 
 
 def svm_train(data,labels):

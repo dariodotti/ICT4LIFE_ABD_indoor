@@ -3,7 +3,7 @@ import argparse
 from datetime import datetime
 
 import database
-import kinect_global_trajectories
+import kinect_features
 import ambient_sensor
 import visualization
 import classifiers
@@ -30,7 +30,7 @@ def daily_motion_training(db,avaliable_sensor):
         seconds = 4
         date = '2017-07-11'
         time_slice_size = [hours, minutes, seconds]
-        global_traj_features,patient_ID = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints,time_slice_size, draw_joints_in_scene=1)
+        global_traj_features,patient_ID = kinect_features.feature_extraction_video_traj(kinect_joints, time_slice_size, draw_joints_in_scene=1)
 
         #Get labels from clustering
         #labels_cluster = classifiers.cluster_kmeans(global_traj_features[1],k=3)
@@ -47,6 +47,11 @@ def daily_motion_training(db,avaliable_sensor):
         #visualization.bar_plot_motion_over_time(global_traj_features[1])
         kinect_motion_amount = visualization.pie_plot_motion_day(global_traj_features[1])
 
+        # normalize motion
+        total_motion = np.sum(kinect_motion_amount[0])
+        for n_k, k_data in enumerate(kinect_motion_amount[0]): kinect_motion_amount[0][n_k] = k_data / total_motion
+
+        print kinect_motion_amount
         ##make it dictionary
         kinect_motion_amount = {'stationary': kinect_motion_amount[0][0],'slow_mov': kinect_motion_amount[0][1],'fast_mov': kinect_motion_amount[0][2]}
 
@@ -81,7 +86,7 @@ def daily_motion_test(db,avaliable_sensor):
         minutes = 0
         seconds = 25
         time_slice_size = [hours, minutes, seconds]
-        global_traj_features = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints,time_slice_size)
+        global_traj_features = kinect_features.feature_extraction_video_traj(kinect_joints, time_slice_size)
 
         #read model from database
         model= database.get_classifier_model(filename='startPeriod_endPeriod')
@@ -159,7 +164,7 @@ def abnormal_behavior_classification_training(db, avaliable_sensor):
         minutes = 0
         seconds = 25
         time_slice_size = [hours,minutes,seconds]
-        global_traj_features = kinect_global_trajectories.feature_extraction_video_traj(kinect_joints,time_slice_size)
+        global_traj_features = kinect_features.feature_extraction_video_traj(kinect_joints, time_slice_size)
 
         ## perform clustering
         #classifiers.cluster_meanShift(global_traj_features[1],save_model=1)
@@ -210,13 +215,13 @@ def visit_bathroom(db,avaliable_sensor):
     return toilet_visit
 
 
-def get_freezing_loss_of_balance_detection(db):
+def get_freezing_festination(db):
 
     time_interval = ['2017-07-12 12:24:00', '2017-07-12 12:27:50']
 
-    #kinect_global_trajectories.freezing_detection(db, time_interval)
+    kinect_features.freezing_detection(db, time_interval)
 
-    kinect_global_trajectories.loss_of_balance_detection(db, time_interval)
+    kinect_features.festination(db, time_interval)
 
 
 

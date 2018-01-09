@@ -420,21 +420,23 @@ def feature_extraction_video_traj(skeleton_data, timeInterval_slice, draw_joints
     #cluster_prediction = my_exp.main_experiments(HOT_data)
 
 
-def bow_traj(data_matrix,cluster_model,key_labels):
+bow_data = database.load_matrix_pickle('C:/Users/certhadmin/Documents/ABD_files/test_cluster_without_outliers/BOW_3_kmeans_16subject_2sec_without_outlier.txt')
+labels_bow_data = database.load_matrix_pickle('C:/Users/certhadmin/Documents/ABD_files/test_cluster_without_outliers/BOW_3_kmeans_labels_16subject_2sec_without_outlier.txt')
+
+def bow_traj(data_matrix,cluster_model,key_labels,hist):
 
     ##get bow already computed
 ##    bow_data = database.load_matrix_pickle('C:/Users/certhadmin/Desktop/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/BOW_30_kmeans_16subject_2sec.txt')
 ##    labels_bow_data = database.load_matrix_pickle('C:/Users/certhadmin/Desktop/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/BOW_30_kmeans_labels_16subject_2sec.txt')
 
-    bow_data = database.load_matrix_pickle('C:/Users/certhadmin/Documents/ABD_files/test_cluster_without_outliers/BOW_3_kmeans_16subject_2sec_without_outlier.txt')
-    labels_bow_data = database.load_matrix_pickle('C:/Users/certhadmin/Documents/ABD_files/test_cluster_without_outliers/BOW_3_kmeans_labels_16subject_2sec_without_outlier.txt')
+
     
     ##labels meaning: 0 - normal activity , 1- normal-activity, 2-confusion, 3-repetitive, 4-questionnaire at table, 5- making tea
-    classifiers.logistic_regression_train(bow_data, np.ravel(labels_bow_data), save_model=0)
+    #classifiers.logistic_regression_train(bow_data, np.ravel(labels_bow_data), save_model=0)
 
     
 
-    hist = np.zeros((1, len(key_labels)))
+    #hist = np.zeros((1, len(key_labels)))
 
     #database.save_matrix_pickle(data_matrix,'C:/Users/certhadmin/Desktop/behaviors_2.txt')
 
@@ -453,17 +455,17 @@ def bow_traj(data_matrix,cluster_model,key_labels):
         
 
         #print classifiers.logistic_regression_predict(normalize(hist,norm='l1'))
-        print classifiers.logistic_regression_predict(hist)
+        pred_result, pred_conf = classifiers.logistic_regression_predict(hist)
 
     
-    vis.plot_word_distribution(key_labels,hist)
+    #vis.plot_word_distribution(key_labels,hist)
     #hist = normalize(np.array(hist),norm='l1')
     # if len(vocabulary)>0:
     #     vocabulary = np.vstack((vocabulary,hist))
     # else:
     #     vocabulary = hist
 
-    return hist
+    return hist, pred_result, pred_conf
 
 
 def load_model_weights(model, path):
@@ -779,18 +781,20 @@ def unix_time_ms(date):
     return (date - datetime(1970,1,1)).total_seconds() * 1000
 
 
-def festination(db):
+def festination(db, time_interval):
 
     fps = 30
 
-    requestDate = '2017-12-07 09:27:00'
-    requestDate = datetime.strptime(requestDate, "%Y-%m-%d %H:%M:%S")
+    #requestDate = '2017-12-07 09:27:00'
+    #requestDate = datetime.strptime(requestDate, "%Y-%m-%d %H:%M:%S")
 
     # =======================================================================
 
     # get data for the last day
-    timeStart = (requestDate - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-    timeEnd = requestDate.strftime("%Y-%m-%d %H:%M:%S")
+    timeStart = time_interval[0].strftime("%Y-%m-%d %H:%M:%S")#(requestDate - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    timeEnd = time_interval[1].strftime("%Y-%m-%d %H:%M:%S")#requestDate.strftime("%Y-%m-%d %H:%M:%S")
+
+
 
     d_all = database.read_kinect_data_from_db(collection=db.Kinect,
                                               time_interval=[timeStart, timeEnd],
@@ -908,7 +912,7 @@ def festination(db):
 
             dist_x = peaks[:-1] + np.diff(peaks) + 1
 			
-			events = []
+            events = []
             for i in range(len(skeletons)):
 
                 events.append([])

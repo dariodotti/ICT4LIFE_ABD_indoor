@@ -54,39 +54,39 @@ def delete_sensor_documents(db, time_interval):
     return result
 
 
-def multithread_joints_from_db(n_frame,f):
-
-    # while in_queue.get()[1] != 'STOP':
-    #     print in_queue.get()[1]
-    #
-    #     f = in_queue.get()[0]
-    #     n_frame = in_queue.get()[1]
-    print n_frame
-    shared_list = []
-    # takes only data within the selected time interval
-    for n_id, body_frame in enumerate(f['BodyFrame']):
-
-        if body_frame['isTracked']:
-
-            frame_body_joints = np.zeros((len(body_frame['skeleton']['rawGray']) + 1, 3), dtype='S30')
-
-            # frameID
-            frame_body_joints[0, 0] = n_frame
-            # time
-            frame_body_joints[0, 1] = f['_id']
-            # trackID
-            frame_body_joints[0, 2] = n_id
-
-            # joints
-            i = 1
-            for j in body_frame['skeleton']['rawGray']:
-                frame_body_joints[i, 0] = j['x']
-                frame_body_joints[i, 1] = j['y']
-                frame_body_joints[i, 2] = j['z']
-                i += 1
-            shared_list.append(frame_body_joints)
-
-    return shared_list
+# def multithread_joints_from_db(n_frame,f):
+#
+#     # while in_queue.get()[1] != 'STOP':
+#     #     print in_queue.get()[1]
+#     #
+#     #     f = in_queue.get()[0]
+#     #     n_frame = in_queue.get()[1]
+#     print n_frame
+#     shared_list = []
+#     # takes only data within the selected time interval
+#     for n_id, body_frame in enumerate(f['BodyFrame']):
+#
+#         if body_frame['isTracked']:
+#
+#             frame_body_joints = np.zeros((len(body_frame['skeleton']['rawGray']) + 1, 3), dtype='S30')
+#
+#             # frameID
+#             frame_body_joints[0, 0] = n_frame
+#             # time
+#             frame_body_joints[0, 1] = f['_id']
+#             # trackID
+#             frame_body_joints[0, 2] = n_id
+#
+#             # joints
+#             i = 1
+#             for j in body_frame['skeleton']['rawGray']:
+#                 frame_body_joints[i, 0] = j['x']
+#                 frame_body_joints[i, 1] = j['y']
+#                 frame_body_joints[i, 2] = j['z']
+#                 i += 1
+#             shared_list.append(frame_body_joints)
+#
+#     return shared_list
 
 
 def read_kinect_data_from_db(collection, time_interval, session, skeletonType, exclude_columns=None):
@@ -506,8 +506,6 @@ def read_MSBand_from_db_asDict(collection, time_interval, session):
 
 
     return all_data
-
-
 
 
 def save_classifier_model(model,filename):
