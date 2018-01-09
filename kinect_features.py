@@ -779,18 +779,20 @@ def unix_time_ms(date):
     return (date - datetime(1970,1,1)).total_seconds() * 1000
 
 
-def festination(db):
+def festination(db, time_interval):
 
     fps = 30
 
-    requestDate = '2017-12-07 09:27:00'
-    requestDate = datetime.strptime(requestDate, "%Y-%m-%d %H:%M:%S")
+    #requestDate = '2017-12-07 09:27:00'
+    #requestDate = datetime.strptime(requestDate, "%Y-%m-%d %H:%M:%S")
 
     # =======================================================================
 
     # get data for the last day
-    timeStart = (requestDate - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-    timeEnd = requestDate.strftime("%Y-%m-%d %H:%M:%S")
+    timeStart = time_interval[0].strftime("%Y-%m-%d %H:%M:%S")#(requestDate - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    timeEnd = time_interval[1].strftime("%Y-%m-%d %H:%M:%S")#requestDate.strftime("%Y-%m-%d %H:%M:%S")
+
+
 
     d_all = database.read_kinect_data_from_db(collection=db.Kinect,
                                               time_interval=[timeStart, timeEnd],
@@ -908,7 +910,7 @@ def festination(db):
 
             dist_x = peaks[:-1] + np.diff(peaks) + 1
 			
-			events = []
+            events = []
             for i in range(len(skeletons)):
 
                 events.append([])
