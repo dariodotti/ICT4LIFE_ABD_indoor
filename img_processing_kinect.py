@@ -43,7 +43,7 @@ def divide_image(my_room):
     #     print 'img not divisible by the given number of slices'
     #     return list_poly
 
-    n_row = range(106,my_room.shape[0],my_room.shape[0]/slice_rows)
+    n_row = range(0,my_room.shape[0],my_room.shape[0]/slice_rows)
     n_col = range(0,my_room.shape[1],my_room.shape[1]/slice_cols)
 
     for r in range(0,len(n_row)):

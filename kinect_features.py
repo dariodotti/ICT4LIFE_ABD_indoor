@@ -82,11 +82,10 @@ def get_coordinate_points(time_slice, joint_id):
 
     #apply filter to cancel noise
     #x_f,y_f =my_img_proc.median_filter(list_points)
-
     xs = map(lambda line: float(line[joint_id][0]) ,time_slice)
     ys = map(lambda line: float(line[joint_id][1]), time_slice)
     zs = map(lambda line: float(line[joint_id][2]), time_slice)
-    ids = map(lambda line: np.int64(line[0][2]), time_slice)
+    #ids = map(lambda line: np.int64(line[0][2]), time_slice)
 
     x_f = gaussian_filter(xs,2)
     y_f = gaussian_filter(ys,2)
@@ -99,7 +98,7 @@ def get_coordinate_points(time_slice, joint_id):
     #kinect_min_distance = 0.5
     
 
-    return x_f,y_f,zs,ids
+    return x_f,y_f,zs
 
 
 def occupancy_histograms_in_time_interval(my_room, list_poly, time_slices):
@@ -158,24 +157,100 @@ def occupancy_histograms_in_time_interval(my_room, list_poly, time_slices):
     return normalized_finalMatrix
 
 
+def histograms_of_oriented_trajectories_realtime(list_poly,time_slice):
+
+    hot_all_data_matrix = []
+    hot_all_data_matrix_append = hot_all_data_matrix.append
+
+    if(len(time_slice)<1):
+            print 'no data in this time slice'
+            return
+    else:
+        #get x,y,z of every traj point after smoothing process
+        x_filtered,y_filtered,zs = get_coordinate_points(time_slice, joint_id= 3)
+        print len(x_filtered)
+        #initialize histogram of oriented tracklets
+        hot_matrix = []
+
+        
+        for p in xrange(0,len(list_poly)):
+            tracklet_in_cube_f = []
+            tracklet_in_cube_c = []
+            tracklet_in_cube_middle = []
+            tracklet_in_cube_append_f = tracklet_in_cube_f.append
+            tracklet_in_cube_append_c = tracklet_in_cube_c.append
+            tracklet_in_cube_append_middle = tracklet_in_cube_middle.append
+
+            for ci in xrange(0,len(x_filtered)):
+                if np.isinf(x_filtered[ci]) or np.isinf(y_filtered[ci]): continue
+
+
+                #2d polygon
+                if list_poly[p].contains_point((int(x_filtered[ci]),int(y_filtered[ci]))):
+                    ## 3d cube close to the camera
+                    if zs[ci] <= (kinect_min_distance+cube_size):
+
+                        tracklet_in_cube_append_c([x_filtered[ci],y_filtered[ci],ids[ci]])
+
+
+                    elif zs[ci] > (kinect_min_distance+cube_size) and zs[ci] < (kinect_min_distance+(cube_size*2)): #
+                        tracklet_in_cube_append_middle([x_filtered[ci], y_filtered[ci], ids[ci]])
+
+                    elif zs[ci]>= kinect_min_distance + (cube_size*2): ##3d cube far from the camera
+                        tracklet_in_cube_append_f([x_filtered[ci],y_filtered[ci],ids[ci]])
+
+
+            print 'size 3d patches in the scene ',len(tracklet_in_cube_c),len(tracklet_in_cube_middle),len(tracklet_in_cube_f)
+
+            
+            for three_d_poly in [tracklet_in_cube_c, tracklet_in_cube_middle, tracklet_in_cube_f]:
+                if len(three_d_poly)>0:
+
+                    ## for tracklet in cuboids compute HOT following paper
+                    hot_single_poly = my_img_proc.histogram_oriented_tracklets(three_d_poly)
+
+                    ## compute hot+curvature
+                    #hot_single_poly = my_img_proc.histogram_oriented_tracklets_plus_curvature(three_d_poly)
+
+                else:
+                    hot_single_poly = np.zeros((24))
+
+
+                ##add to general matrix
+                if len(hot_matrix)>0:
+                    hot_matrix = np.hstack((hot_matrix,hot_single_poly))
+                else:
+                    hot_matrix = hot_single_poly
+
+        ## normalize the final matrix
+        normalized_finalMatrix = np.array(normalize(np.array(hot_all_data_matrix),norm='l2'))
+
+        print 'HOT final matrix size: ', normalized_finalMatrix.shape
+        
+
+    return normalized_finalMatrix
+
+
+
 def histograms_of_oriented_trajectories(list_poly,time_slices):
 
-    print kinect_max_distance, kinect_min_distance
+    #print kinect_max_distance, kinect_min_distance
     
     hot_all_data_matrix = []
     hot_all_data_matrix_append = hot_all_data_matrix.append
 
+    
     for i in xrange(0,len(time_slices)):
         ##Checking the start time of every time slice
-        if(len(time_slices[i])>1):
-            print 'start time: %s' %str(time_slices[i][0][0][1])
-        else:
+        if(len(time_slices[i])<1):
             print 'no data in this time slice'
             continue
+            
+        print np.array(time_slices[i]).shape
 
         #get x,y,z of every traj point after smoothing process
-        x_filtered,y_filtered,zs,ids = get_coordinate_points(time_slices[i], joint_id= 3)
-        
+        x_filtered,y_filtered,zs = get_coordinate_points(time_slices[i], joint_id= 3)
+        print len(x_filtered)
         
         #initialize histogram of oriented tracklets
         hot_matrix = []
@@ -240,12 +315,9 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
     ##add extra bin containing time
 
 
-    ##return patinet id
-    patient_id = ids[0]
-
     print 'HOT final matrix size: ', normalized_finalMatrix.shape
 
-    return normalized_finalMatrix, patient_id
+    return normalized_finalMatrix
 
 
 def measure_joints_accuracy(skeleton_data):
@@ -345,11 +417,11 @@ def measure_joints_accuracy(skeleton_data):
     return frames_where_joint_displacement_over_threshold
 
 
-def feature_extraction_video_traj(skeleton_data, timeInterval_slice, draw_joints_in_scene):
+def feature_extraction_video_traj_realtime(skeleton_data, draw_joints_in_scene):
 
     ##divide image into patches(polygons) and get the positions of each one
-    #my_room = np.zeros((424,512,3),dtype=np.uint8)
-    my_room = cv2.imread('C:/Users/certhadmin/Documents/ABD_files/pecs_room.jpg')
+    my_room = np.zeros((424,512,3),dtype=np.uint8)
+    #my_room = cv2.imread('C:/Users/certhadmin/Documents/ABD_files/pecs_room.jpg')
     my_room += 255
     list_poly = my_img_proc.divide_image(my_room)
 
@@ -360,68 +432,32 @@ def feature_extraction_video_traj(skeleton_data, timeInterval_slice, draw_joints
     #measure_joints_accuracy(skeleton_data)
     #print skeleton_data[0]
 
-    ## In case there are more than 1 ID in the scene I analyze the 1 trajectory per time
+    if draw_joints_in_scene: vis.draw_joints_and_tracks(skeleton_id, list_poly, my_room)
 
-    ids = map(lambda line: line[0][2], skeleton_data)
-    print 'skeleton id: ', Counter(ids).most_common()
-    #main_id = Counter(ids).most_common()[1][0]
+
+    ##--------------Feature Extraction-------------##
+    #print 'feature extraction'
+
     
-    database.save_matrix_pickle(skeleton_data,'C:/Users/certhadmin/Desktop/data_for_review/skeletons_repetitive_behavior_08082017.txt')
+    ## count traj points in each region and create hist
+    #occupancy_histograms = occupancy_histograms_in_time_interval(my_room, list_poly, skeleton_data_in_time_slices)
+    occupancy_histograms = 0
 
-    HOT_data_all_ids = []
-    
-    for counter_ids in Counter(ids).most_common()[:2]:
-        skeleton_id = skeleton_data
-        main_id = counter_ids[0]
-
-        new_joints_points = []
-        for i_point, points in enumerate(skeleton_id):
-            if points[0][2] == main_id:
-                new_joints_points.append(points)
-
-        skeleton_id = new_joints_points
-
-        if draw_joints_in_scene:
-            ##Draw the skeleton and patches
-            vis.draw_joints_and_tracks(skeleton_id, list_poly, my_room)
-
-        ##Organize skeleton data in time interval segment
-        skeleton_data_in_time_slices = org_data_in_timeIntervals(skeleton_id, timeInterval_slice)
+    #print len(skeleton_data_in_time_slices)
+    ## create Histograms of Oriented Tracks
+    HOT_data,patient_ID = histograms_of_oriented_trajectories_realtime(list_poly, skeleton_data)
 
 
-        ##--------------Feature Extraction-------------##
-        print 'feature extraction'
 
-        ##get global max min z of the data
-        #zs = map(lambda line: float(line[3][2]), skeleton_id)
-        #global kinect_max_distance
-        #global kinect_min_distance
-        #kinect_max_distance = max(zs)
-        #kinect_min_distance = min(zs)
-        #global cube_size
-        #cube_size =(kinect_max_distance - kinect_min_distance)/3
-        #print kinect_min_distance,kinect_max_distance,cube_size
-        #####
+    print HOT_data.shape
 
-        ## count traj points in each region and create hist
-        #occupancy_histograms = occupancy_histograms_in_time_interval(my_room, list_poly, skeleton_data_in_time_slices)
-        occupancy_histograms = 0
-
-        ## create Histograms of Oriented Tracks
-        HOT_data,patient_ID = histograms_of_oriented_trajectories(list_poly,skeleton_data_in_time_slices)
-
-        if len(HOT_data_all_ids)>0: HOT_data_all_ids = np.vstack((HOT_data_all_ids,HOT_data))
-        else: HOT_data_all_ids = HOT_data
-
-    print HOT_data_all_ids.shape
-
-    return [occupancy_histograms,HOT_data_all_ids],patient_ID
+    return [occupancy_histograms,HOT_data]
 
     #cluster_prediction = my_exp.main_experiments(HOT_data)
 
 
-bow_data = database.load_matrix_pickle('C:/Users/certhadmin/Documents/ABD_files/test_cluster_without_outliers/BOW_3_kmeans_16subject_2sec_without_outlier.txt')
-labels_bow_data = database.load_matrix_pickle('C:/Users/certhadmin/Documents/ABD_files/test_cluster_without_outliers/BOW_3_kmeans_labels_16subject_2sec_without_outlier.txt')
+bow_data = database.load_matrix_pickle('C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/BOW_30_kmeans_16subject_2sec.txt')
+labels_bow_data = database.load_matrix_pickle('C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/BOW_30_kmeans_labels_16subject_2sec.txt')
 
 def bow_traj(data_matrix,cluster_model,key_labels,hist):
 

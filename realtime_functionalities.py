@@ -14,13 +14,14 @@ import get_token
 
 
 
-cluster_model = database.load_matrix_pickle('C:/Users/certhadmin/Documents/ABD_files/test_cluster_without_outliers/cl_30_kmeans_model_2secWindow_without_outliers.txt')
-key_labelss = database.load_matrix_pickle('C:/Users/certhadmin/Documents/ABD_files/test_cluster_without_outliers/cluster_3_kmeans_word__without_outliers.txt')
+cluster_model = database.load_matrix_pickle('C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/cl_30_kmeans_model_2secWindow_newVersion.txt')
+key_labelss = database.load_matrix_pickle('C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/cluster_30_kmeans_word_newVersion.txt')
 key_labels = map(lambda x: x[0], key_labelss)
 def disorientation(db, timeStart,timeEnd, requestInterval, hist):
 
     ##get realtime data from db
     kinect_joints = database.read_kinect_joints_from_db(db.Kinect, [timeStart,timeEnd], multithread=0)
+    
 
     if len(kinect_joints)>0:
 
@@ -29,12 +30,7 @@ def disorientation(db, timeStart,timeEnd, requestInterval, hist):
         second = requestInterval
 
         # extract features from kinect
-        global_traj_features,patient_ID = kinect_features.feature_extraction_video_traj(kinect_joints, [hours, minute, second], draw_joints_in_scene=0)
-
-        ##get labels from already trained cluster
-##            cluster_model = database.load_matrix_pickle('C:/Users/certhadmin/Desktop/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/cl_30_kmeans_model_2secWindow_newVersion.txt')
-##            key_labels = database.load_matrix_pickle('C:/Users/certhadmin/Desktop/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/cluster_30_kmeans_word_newVersion.txt')
-##            key_labels = map(lambda x: x[0],key_labels)
+        global_traj_features,patient_ID = kinect_features.feature_extraction_video_traj_realtime(kinect_joints, draw_joints_in_scene=0)
 
 
         #####
@@ -43,7 +39,9 @@ def disorientation(db, timeStart,timeEnd, requestInterval, hist):
 
     else:
         print '--------------- no data in the time interval ---------------------'
-        bow_label = 500
+        pred_result = 500
+        hist = []
+        pred_conf = 0
 
     return hist, pred_result, pred_conf
 
@@ -52,8 +50,7 @@ def disorientation(db, timeStart,timeEnd, requestInterval, hist):
 def model_Fall_skel(nSteps, nVars, RNN, lrnRate, pDrop=0.5):
 
         from keras.models import Model
-        from keras.layers import Dense, LSTM
-        from keras.layers import Input
+        from keras.layers import Input, TimeDistributed, Dense, LSTM, Dropout
         from keras.optimizers import Nadam
 
 
@@ -64,18 +61,18 @@ def model_Fall_skel(nSteps, nVars, RNN, lrnRate, pDrop=0.5):
 
         x = LSTM(units=RNN[0],
                  implementation=0,
-                 return_sequences=False,
+                 return_sequences=True,
                  stateful=RNN[1],
                  unroll=True,
                  dropout=pDrop,
                  recurrent_dropout=pDrop,
                  activation='tanh')(model_in)
 
-        x = Dense(units=RNN[0],
-                  activation='tanh')(x)
+        x = TimeDistributed(Dense(units=RNN[0],
+                                  activation='tanh'))(x)
 
-        x = Dense(units=2,
-                  activation='softmax')(x)
+        x = TimeDistributed(Dense(units=2,
+                                  activation='softmax'))(x)
 
         model_out = x
 
@@ -150,7 +147,8 @@ def fall_down_manager(skeletons, jointsOfInterest, requestInterval, timeStart, f
 
             prediction = model.predict(data_interp)  # , batch_size=64)
 
-            #hold_max = -1
+
+            hold_max = -1
             hold_id = ''
             for band_key in d_all_MSband.keys():
                 d_band = d_all_MSband[band_key]
@@ -213,7 +211,8 @@ def fall_down_manager(skeletons, jointsOfInterest, requestInterval, timeStart, f
 
 def loss_of_balance_manager(skeletons, idSkeleton, stand, requestInterval, requestDate, timeStart, results, key):
 
-    # print '-----------loss of balance manager-------------'
+    #print '-----------loss of balance manager-------------'
+    
     idSkeleton = np.array(idSkeleton)
 
     for k in range(len(skeletons)):
@@ -405,9 +404,9 @@ def load_models(jointsOfInterest, fps):
 
     # model_fall_down = load_model_weights(model_fall_down, 'C:/Users/Dell/Desktop/ICT4LIFE_ABD_indoor/BOW_trained_data/fall_sk_0.20.hdf5')
     model_fall_down = kinect_features.load_model_weights(model_fall_down,
-                                                     'C:/Users/Dell/Desktop/test_multi_thread_demo_madrid/fall_sk_10.50.hdf5')
+                                                     'C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/fall_sk_10.50.hdf5')
 
-    file_calibaration = 'C:/Users/Dell/Desktop/test_multi_thread_demo_madrid/Calibration_12_9_17.txt'
+    file_calibaration = 'C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/APM_KINECT_Calibration_12_9_17.txt'
 
     RT = np.genfromtxt(file_calibaration, delimiter=',')
     R = RT[0:3, :]
@@ -487,13 +486,17 @@ def main_realtime_functionalities():
         ## initialize bow hist for disorientation
         hist = np.zeros((1, len(key_labels)))
 
-
+        ##To test it nonrealtime##
+        date_end = datetime.strptime('2018-01-09 08:44:13', '%Y-%m-%d %H:%M:%S')
+        
         ## start loop for realtime
         while True:
 
             results = []
 
-            requestDate = datetime.utcnow() - timedelta(seconds=requestInterval)
+            #requestDate = datetime.utcnow() - timedelta(seconds=requestInterval)
+            ##To test it nonrealtime##
+            requestDate = date_end - timedelta(seconds=requestInterval)
 
             print "--------------------------------------\r\n"
             print requestDate
@@ -516,6 +519,7 @@ def main_realtime_functionalities():
                                                         session='')
 
             if len(d_all_MSband) == 0: print 'no data from the band'
+            if len(d_all) == 0: print 'no data from kinect'
 
             for key in d_all.keys():
 
@@ -591,25 +595,16 @@ def main_realtime_functionalities():
                         ## send live notification
                         get_token.real_report('MSFT Band UPM f6:65', event['Event'])
 
-            requestDate = requestDate + timedelta(seconds=requestInterval)
-
+            
+            #requestDate = requestDate + timedelta(seconds=requestInterval)
+            ##To test it non real time
+            date_end = requestDate
+            
             t2 = datetime.now()
             if (t2 - t1).seconds < requestInterval:
                 time.sleep(requestInterval - (t2 - t1).seconds)
             # else:
             # print 'Delayed !'
-
-
-
-
-
-
-
-
-
-
-
-    #disorientation(db,avaliable_sensor)
 
 
 

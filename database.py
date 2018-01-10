@@ -142,6 +142,8 @@ def read_kinect_data_from_db(collection, time_interval, session, skeletonType, e
 
             if body_frame['isTracked']:
 
+
+
                 frame_body_joints = []
 
                 frame_body_joints.append( n_frame )
@@ -150,6 +152,14 @@ def read_kinect_data_from_db(collection, time_interval, session, skeletonType, e
                 frame_body_joints.append( body_frame['leanLR'] )
                 frame_body_joints.append( body_frame['leanConfidence'] )
                 frame_body_joints.append( body_frame['firstTrack'] )
+
+                try:
+                    frame_body_joints.append( body_frame['re_id'] )
+                except:
+                    ##TODO: write on the log file
+                    a=1
+                    #print '------ re_id not available ----'
+                    #frame_body_joints.append(0)
 
                 joints = []
                 counter = 0
