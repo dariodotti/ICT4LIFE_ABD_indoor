@@ -168,7 +168,8 @@ def histograms_of_oriented_trajectories_realtime(list_poly,time_slice):
     else:
         #get x,y,z of every traj point after smoothing process
         x_filtered,y_filtered,zs = get_coordinate_points(time_slice, joint_id= 3)
-        print len(x_filtered)
+
+        
         #initialize histogram of oriented tracklets
         hot_matrix = []
 
@@ -190,17 +191,17 @@ def histograms_of_oriented_trajectories_realtime(list_poly,time_slice):
                     ## 3d cube close to the camera
                     if zs[ci] <= (kinect_min_distance+cube_size):
 
-                        tracklet_in_cube_append_c([x_filtered[ci],y_filtered[ci],ids[ci]])
+                        tracklet_in_cube_append_c([x_filtered[ci],y_filtered[ci]])
 
 
                     elif zs[ci] > (kinect_min_distance+cube_size) and zs[ci] < (kinect_min_distance+(cube_size*2)): #
-                        tracklet_in_cube_append_middle([x_filtered[ci], y_filtered[ci], ids[ci]])
+                        tracklet_in_cube_append_middle([x_filtered[ci], y_filtered[ci]])
 
                     elif zs[ci]>= kinect_min_distance + (cube_size*2): ##3d cube far from the camera
-                        tracklet_in_cube_append_f([x_filtered[ci],y_filtered[ci],ids[ci]])
+                        tracklet_in_cube_append_f([x_filtered[ci],y_filtered[ci]])
 
 
-            print 'size 3d patches in the scene ',len(tracklet_in_cube_c),len(tracklet_in_cube_middle),len(tracklet_in_cube_f)
+            #print 'size 3d patches in the scene ',len(tracklet_in_cube_c),len(tracklet_in_cube_middle),len(tracklet_in_cube_f)
 
             
             for three_d_poly in [tracklet_in_cube_c, tracklet_in_cube_middle, tracklet_in_cube_f]:
@@ -217,13 +218,11 @@ def histograms_of_oriented_trajectories_realtime(list_poly,time_slice):
 
 
                 ##add to general matrix
-                if len(hot_matrix)>0:
-                    hot_matrix = np.hstack((hot_matrix,hot_single_poly))
-                else:
-                    hot_matrix = hot_single_poly
+                if len(hot_matrix)>0: hot_matrix = np.hstack((hot_matrix,hot_single_poly))
+                else: hot_matrix = hot_single_poly
 
         ## normalize the final matrix
-        normalized_finalMatrix = np.array(normalize(np.array(hot_all_data_matrix),norm='l2'))
+        normalized_finalMatrix = np.array(normalize(np.array(hot_matrix),norm='l2'))
 
         print 'HOT final matrix size: ', normalized_finalMatrix.shape
         
@@ -246,7 +245,7 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
             print 'no data in this time slice'
             continue
             
-        print np.array(time_slices[i]).shape
+        #print np.array(time_slices[i]).shape
 
         #get x,y,z of every traj point after smoothing process
         x_filtered,y_filtered,zs = get_coordinate_points(time_slices[i], joint_id= 3)
@@ -432,7 +431,7 @@ def feature_extraction_video_traj_realtime(skeleton_data, draw_joints_in_scene):
     #measure_joints_accuracy(skeleton_data)
     #print skeleton_data[0]
 
-    if draw_joints_in_scene: vis.draw_joints_and_tracks(skeleton_id, list_poly, my_room)
+    if draw_joints_in_scene: vis.draw_joints_and_tracks(skeleton_data, list_poly, my_room)
 
 
     ##--------------Feature Extraction-------------##
@@ -445,19 +444,17 @@ def feature_extraction_video_traj_realtime(skeleton_data, draw_joints_in_scene):
 
     #print len(skeleton_data_in_time_slices)
     ## create Histograms of Oriented Tracks
-    HOT_data,patient_ID = histograms_of_oriented_trajectories_realtime(list_poly, skeleton_data)
+    HOT_data = histograms_of_oriented_trajectories_realtime(list_poly, skeleton_data)
 
 
 
-    print HOT_data.shape
+    #print HOT_data.shape
 
     return [occupancy_histograms,HOT_data]
 
     #cluster_prediction = my_exp.main_experiments(HOT_data)
 
 
-bow_data = database.load_matrix_pickle('C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/BOW_30_kmeans_16subject_2sec.txt')
-labels_bow_data = database.load_matrix_pickle('C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/BOW_30_kmeans_labels_16subject_2sec.txt')
 
 def bow_traj(data_matrix,cluster_model,key_labels,hist):
 
@@ -491,7 +488,7 @@ def bow_traj(data_matrix,cluster_model,key_labels,hist):
         
 
         #print classifiers.logistic_regression_predict(normalize(hist,norm='l1'))
-        pred_result, pred_conf = classifiers.logistic_regression_predict(hist)
+        pred_result, pred_conf = classifiers.logistic_regression_predict(hist.reshape(1,-1))
 
     
     #vis.plot_word_distribution(key_labels,hist)

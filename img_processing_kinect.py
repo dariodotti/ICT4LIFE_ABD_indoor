@@ -43,7 +43,7 @@ def divide_image(my_room):
     #     print 'img not divisible by the given number of slices'
     #     return list_poly
 
-    n_row = range(0,my_room.shape[0],my_room.shape[0]/slice_rows)
+    n_row = range(106,my_room.shape[0],my_room.shape[0]/slice_rows)
     n_col = range(0,my_room.shape[1],my_room.shape[1]/slice_cols)
 
     for r in range(0,len(n_row)):
@@ -111,36 +111,35 @@ def histogram_oriented_tracklets(cube):
 
     cube = np.array(cube)
 
-    if len(list(set(cube[:,2]))) == 1:
-        k = cube[0,2]
-        step = 2
+
+    step = 10
 
 
-        for i in xrange(0,len(cube)-step):
+    for i in xrange(0,len(cube)-step):
 
-            dx = float(cube[i+step,0]) - float(cube[i,0])
-            dy = float(cube[i+step,1]) - float(cube[i,1])
+        dx = float(cube[i+step,0]) - float(cube[i,0])
+        dy = float(cube[i+step,1]) - float(cube[i,1])
 
-            orientation = int(degrees(atan2(dy,dx))%360)
-            magn = int(np.sqrt((np.power(dx,2)+np.power(dy,2))))
-            #print magn
+        orientation = int(degrees(atan2(dy,dx))%360)
+        magn = int(np.sqrt((np.power(dx,2)+np.power(dy,2))))
+        #print magn
 
 
-            for c_interval,o_interval in enumerate(orientation_intervals):
-                if orientation in o_interval[0]:
-                    if magn in magnitude_intervals[0][0]:
-                        hot_matrix[c_interval][0] +=1
-                        break
-                    elif magn in magnitude_intervals[1][0]:
-                        hot_matrix[c_interval][1] +=1
-                        break
-                    elif magn in magnitude_intervals[2][0]:
-                        hot_matrix[c_interval][2] +=1
-                        break
-            ##control whether the values are in the intervals
-            if hot_matrix.sum() == 0:
-                print 'orientation or magn not in the intervals'
-                print orientation,magn
+        for c_interval,o_interval in enumerate(orientation_intervals):
+            if orientation in o_interval[0]:
+                if magn in magnitude_intervals[0][0]:
+                    hot_matrix[c_interval][0] +=1
+                    break
+                elif magn in magnitude_intervals[1][0]:
+                    hot_matrix[c_interval][1] +=1
+                    break
+                elif magn in magnitude_intervals[2][0]:
+                    hot_matrix[c_interval][2] +=1
+                    break
+        ##control whether the values are in the intervals
+        if hot_matrix.sum() == 0:
+            print 'orientation or magn not in the intervals'
+            print orientation,magn
 
     #print hot_matrix
     hot_matrix_reshaped = hot_matrix.reshape((len(orientation_intervals)*len(magnitude_intervals)))

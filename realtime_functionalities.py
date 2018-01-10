@@ -17,20 +17,20 @@ import get_token
 cluster_model = database.load_matrix_pickle('C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/cl_30_kmeans_model_2secWindow_newVersion.txt')
 key_labelss = database.load_matrix_pickle('C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/cluster_30_kmeans_word_newVersion.txt')
 key_labels = map(lambda x: x[0], key_labelss)
-def disorientation(db, timeStart,timeEnd, requestInterval, hist):
+def disorientation(skeletons, timeStart,timeEnd, requestInterval, hist):
 
     ##get realtime data from db
-    kinect_joints = database.read_kinect_joints_from_db(db.Kinect, [timeStart,timeEnd], multithread=0)
-    
+    #kinect_joints = database.read_kinect_joints_from_db(, [timeStart,timeEnd], multithread=0)
+    #returns a dict where key is sensorID
 
-    if len(kinect_joints)>0:
+    if len(skeletons)>0:
 
         hours = 0
         minute = 0
         second = requestInterval
 
         # extract features from kinect
-        global_traj_features,patient_ID = kinect_features.feature_extraction_video_traj_realtime(kinect_joints, draw_joints_in_scene=0)
+        global_traj_features = kinect_features.feature_extraction_video_traj_realtime(np.array(skeletons), draw_joints_in_scene= 0)
 
 
         #####
@@ -40,7 +40,7 @@ def disorientation(db, timeStart,timeEnd, requestInterval, hist):
     else:
         print '--------------- no data in the time interval ---------------------'
         pred_result = 500
-        hist = []
+        hist = np.zeros((1, len(key_labels)))
         pred_conf = 0
 
     return hist, pred_result, pred_conf
@@ -485,6 +485,10 @@ def main_realtime_functionalities():
 
         ## initialize bow hist for disorientation
         hist = np.zeros((1, len(key_labels)))
+        bow_data = database.load_matrix_pickle('C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/BOW_30_kmeans_16subject_2sec.txt')
+        labels_bow_data = database.load_matrix_pickle('C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/BOW_30_kmeans_labels_16subject_2sec.txt')
+        ##labels meaning: 0 - normal activity , 1- normal-activity, 2-confusion, 3-repetitive, 4-questionnaire at table, 5- making tea
+        classifiers.logistic_regression_train(bow_data, np.ravel(labels_bow_data), save_model=0)
 
         ##To test it nonrealtime##
         date_end = datetime.strptime('2018-01-09 08:44:13', '%Y-%m-%d %H:%M:%S')
@@ -510,7 +514,7 @@ def main_realtime_functionalities():
             d_all = database.read_kinect_data_from_db(collection=colKinect,
                                                       time_interval=[timeStart, timeEnd],
                                                       session='',
-                                                      skeletonType='filtered',
+                                                      skeletonType=['filtered','rawGray'],
                                                       exclude_columns=['ColorImage', 'DepthImage',
                                                                        'InfraImage', 'BodyImage'])
 
@@ -529,6 +533,7 @@ def main_realtime_functionalities():
                 idSkeleton = [0, 0, 0, 0, 0, 0]
                 skeletons_4_falldown = []
                 skeletons_4_lb = []
+                skeletons_4_disorientation = []
 
                 coords = []
                 confidence = []
@@ -554,15 +559,15 @@ def main_realtime_functionalities():
                             hasSkeleton[j] == False
 
                         if d[i][j] != []:
-                            skeletons_4_falldown[idSkeleton[j] - 1].append(
-                                [kinect_features.unix_time_ms(d[i][j][1]), np.array(d[i][j][6])])
-                            coords.append(100 * np.array(d[i][j][6])[:, :-1])
-                            confidence.append(np.array(d[i][j][6])[:, -1])
-                            skeletons_4_lb[idSkeleton[j] - 1].append([d[i][j][2], d[i][j][3]])
-                            skeletoncoords.append((np.matmul(R_lb.T, coords[-1].T) + T_lb.T).T)
-                            # print((np.matmul(R_lb.T, coords[-1].T) + T_lb.T).T)[3,:]
+                        	skeletons_4_falldown[idSkeleton[j] - 1].append([kinect_features.unix_time_ms(d[i][j][1]), np.array(d[i][j][6])])
+                        	coords.append(100 * np.array(d[i][j][6])[:, :-1])
+                        	confidence.append(np.array(d[i][j][6])[:, -1])
+                        	skeletons_4_lb[idSkeleton[j] - 1].append([d[i][j][2], d[i][j][3]])
+                        	skeletoncoords.append((np.matmul(R_lb.T, coords[-1].T) + T_lb.T).T)
+                        	skeletons_4_disorientation.append(np.array(d[i][j][7]))
+                            
 
-                            stand[idSkeleton[j] - 1].append(standing(np.array(skeletoncoords[-1]),
+                        	stand[idSkeleton[j] - 1].append(standing(np.array(skeletoncoords[-1]),
                                                                                  np.array(confidence[-1]), 0))
 
                 results = fall_down_manager(skeletons_4_falldown, jointsOfInterest, requestInterval, timeStart, fps,
@@ -571,20 +576,20 @@ def main_realtime_functionalities():
                 results = loss_of_balance_manager(skeletons_4_lb, idSkeleton, stand, requestInterval, requestDate,
                                                   timeStart, results, key)
 
-                hist, behavior_label, behavior_conf = disorientation(db, timeStart, timeEnd, requestInterval, hist)
+                hist, behavior_label, behavior_conf = disorientation(skeletons_4_disorientation, timeStart, timeEnd, requestInterval, hist)
 
                 ##TODO: show behavior label only if it is abnormal with high confidence
-                conf_thresh = 3
-                if (behavior_label == 'confusion' or behavior_label == 'repetitive') and behavior_conf > conf_thresh:
-                    ##create dictionay same structure of other Abnorma events
-                    event= {'TimeStamp': timeStart,
-                                         'Event': behavior_label,
-                                         'Duration': int(requestInterval),
-                                         'Sensor': 'Kinect',
-                                         'SensorID': key,
-                                         'BodyID': int(np.nonzero(idSkeleton)[0][k])}
+                # conf_thresh = 3
+                # if (behavior_label == 'confusion' or behavior_label == 'repetitive') and behavior_conf > conf_thresh:
+                #     ##create dictionay same structure of other Abnorma events
+                #     event= {'TimeStamp': timeStart,
+                #                          'Event': behavior_label,
+                #                          'Duration': int(requestInterval),
+                #                          'Sensor': 'Kinect',
+                #                          'SensorID': key,
+                #                          'BodyID': int(np.nonzero(idSkeleton)[0][k])}
 
-                    database.write_event(db, event)
+                #     database.write_event(db, event)
 
 
                 ## writing the results into the db
@@ -593,7 +598,7 @@ def main_realtime_functionalities():
                         ## writing the results into the db
                         database.write_event(db, event)
                         ## send live notification
-                        get_token.real_report('MSFT Band UPM f6:65', event['Event'])
+                        #get_token.real_report('MSFT Band UPM f6:65', event['Event'])
 
             
             #requestDate = requestDate + timedelta(seconds=requestInterval)

@@ -120,7 +120,7 @@ def read_kinect_data_from_db(collection, time_interval, session, skeletonType, e
 
     """
 
-    if skeletonType not in ['raw', 'rawColor', 'rawGray', 'filtered', \
+    if skeletonType[0] not in ['raw', 'rawColor', 'rawGray', 'filtered', \
                             'filteredColor', 'filteredGray']:
         raise RuntimeError('skeletonType must be one of raw, rawColor, rawGray, ' +
                             'filtered, filteredColor, filteredGray')
@@ -142,38 +142,57 @@ def read_kinect_data_from_db(collection, time_interval, session, skeletonType, e
 
             if body_frame['isTracked']:
 
-
-
                 frame_body_joints = []
 
                 frame_body_joints.append( n_frame )
-                frame_body_joints.append( f['_id'] )
+                try:
+                    frame_body_joints.append( body_frame['re_id'] )
+                except:
+                    #print '------ re_id not available ----'
+                    frame_body_joints.append( f['_id'] )
+                
                 frame_body_joints.append( body_frame['leanFB'] )
                 frame_body_joints.append( body_frame['leanLR'] )
                 frame_body_joints.append( body_frame['leanConfidence'] )
                 frame_body_joints.append( body_frame['firstTrack'] )
 
-                try:
-                    frame_body_joints.append( body_frame['re_id'] )
-                except:
-                    ##TODO: write on the log file
-                    a=1
-                    #print '------ re_id not available ----'
-                    #frame_body_joints.append(0)
+                # joints = []
+                # counter = 0
+                # for j in body_frame['skeleton'][skeletonType]:
+                #     joints.append([])
 
-                joints = []
-                counter = 0
-                for j in body_frame['skeleton'][skeletonType]:
-                    joints.append([])
+                #     joints[counter].append( j['x'] )
+                #     joints[counter].append( j['y'] )
+                #     joints[counter].append( j['z'] )
+                #     joints[counter].append( j['confidence'] )
 
-                    joints[counter].append( j['x'] )
-                    joints[counter].append( j['y'] )
-                    joints[counter].append( j['z'] )
-                    joints[counter].append( j['confidence'] )
+                #     counter += 1
 
-                    counter += 1
+                # frame_body_joints.append(joints)
 
-                frame_body_joints.append(joints)
+
+                
+                for skeletonTypes in skeletonType:
+                    joints = []
+                    counter = 0
+                    #joints.append([skeletonTypes])
+                    for j in xrange(len(body_frame['skeleton'][skeletonTypes])):
+                        joints.append([])
+
+                        joints[counter].append( body_frame['skeleton'][skeletonTypes][j]['x'] )
+                        joints[counter].append( body_frame['skeleton'][skeletonTypes][j]['y'] )
+
+                        if skeletonTypes == 'rawGray':
+                            ## raw gray has wrong z coordinates so I take the raw one
+                            joints[counter].append( body_frame['skeleton']['raw'][j]['z'] )
+                        else:
+                            joints[counter].append( body_frame['skeleton'][skeletonTypes][j]['z'] )
+                        joints[counter].append( body_frame['skeleton'][skeletonTypes][j]['confidence'] )
+
+                        counter += 1
+
+                    frame_body_joints.append(joints)
+                
                 all_joints[n_id] = frame_body_joints
 
         all_data[f['SensorID']].append(all_joints)
