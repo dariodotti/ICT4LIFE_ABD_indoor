@@ -1,5 +1,6 @@
 import numpy as np
 import argparse
+import time
 from datetime import datetime
 
 import database
@@ -14,9 +15,9 @@ import socket
 
 
 
-def daily_motion_training(db,avaliable_sensor):
+def daily_motion_training(db,avaliable_sensor, time_interval):
 
-    time_interval = ['2018-01-09 08:43:13','2018-01-09 08:44:13']
+    #time_interval = ['2018-01-09 08:43:13','2018-01-09 08:44:13']
 
     if avaliable_sensor['kinect']:
         print 'kinect for daily motion'
@@ -24,12 +25,11 @@ def daily_motion_training(db,avaliable_sensor):
         ##get data from database
         kinect_joints = database.read_kinect_joints_from_db(db.Kinect,time_interval,multithread=0)
 
+        if len(kinect_joints) <1: 
+            print '----- no data in time interval -----' 
+            return 0
+
         #extract features from kinect
-        #hours = 0
-        #minutes = 0
-        #seconds = 4
-        #date = '2017-07-11'
-        #time_slice_size = [hours, minutes, seconds]
         global_traj_features = kinect_features.feature_extraction_video_traj(kinect_joints, draw_joints_in_scene=0, realtime=0)
 
         #Get labels from clustering
@@ -109,10 +109,10 @@ def daily_motion_test(db,avaliable_sensor):
         upmBand_data = database.read_UPMBand_from_db(db.UPMBand,time_interval)
 
 
-def as_day_motion(db, avaliable_sensor):
+def as_day_motion(db, avaliable_sensor,time_interval):
 
     ##get data in the selected time interval from database
-    time_interval = ['2017-07-27 10:18:00', '2017-07-27 10:18:30']
+    #time_interval = ['2017-07-27 10:18:00', '2017-07-27 10:18:30']
 
 
     if avaliable_sensor['ambientSensor']:
@@ -219,17 +219,20 @@ def get_freezing_festination(db):
 
     time_interval = ['2018-01-09 08:43:13','2018-01-09 08:44:13']
 
-    kinect_features.freezing_detection(db, time_interval)
+    fr_events = kinect_features.freezing_detection(db, time_interval)
 
-    kinect_features.festination(db, time_interval)
+    fe_events = kinect_features.festination(db, time_interval)
+
+    return fr_events, fe_events
 
 
 
 def main_nonrealtime_functionalities():
 
     # Perform reidentification
-    #json_data = {"init_hour": "11:00:00", "init_date": "23-11-2017", "fin_hour": "12:00:00", "fin_date": "23-11-2017"}
+    #json_data = {"init_hour": "14:23:00", "init_date": "11-01-2018", "fin_hour": "14:27:00", "fin_date": "11-01-2018"}
     #r = requests.post("http://"+str(socket.gethostbyname(socket.gethostname()))+":8000/get_all_data/", json=json_data)
+    #r = requests.post("http://192.168.1.188:8000/get_all_data/", json=json_data)
 
     ##INPUT: path of configuration file for available sensor
     parser = argparse.ArgumentParser(description='path to conf file')
@@ -245,11 +248,13 @@ def main_nonrealtime_functionalities():
     #connect to the db
     db = database.connect_db('local')
     
+    ## time interval to analyze
+    time_interval = ['2018-01-11 14:23:00','2018-01-11 14:27:00']
 
 
-    kinect_motion_amount = daily_motion_training(db,avaliable_sensor)
+    kinect_motion_amount = daily_motion_training(db,avaliable_sensor,time_interval)
 
-    day_motion_as_activation = as_day_motion(db, avaliable_sensor)
+    day_motion_as_activation = as_day_motion(db, avaliable_sensor,time_interval)
 
     night_motion_as_activation = as_night_motion(db, avaliable_sensor)
 
@@ -257,8 +262,15 @@ def main_nonrealtime_functionalities():
 
     #apathy()
 
-    ## ---------CERTH
-    get_freezing_festination(db)
+    freezing_analysis,festination_analysis = get_freezing_festination(db)
+
+    #freezing_analysis =0
+    #festination_analysis=0
+    loss_of_balance_analisys=0
+    fall_down_analysis = 0
+    confusion_analysis = 0
+    lh_number = 0
+    lhc_number = 0
 
     # summarize HBR, GSR
     #database.summary_MSBand(db,[2017, 7, 6])

@@ -4,7 +4,10 @@ import numpy as np
 from datetime import datetime
 import cPickle
 import multiprocessing
+import time
+import json
 #from multiprocessing.dummy import Pool as threadPool
+
 
 import pandas as pd
 from datetime import datetime, timedelta
@@ -1300,12 +1303,12 @@ def summarize_events_certh(event_name, path):
     return '{0}: {{\'number\': {1}, \'beginning\': {2}, \'duration\': {3}}}'.format(\
                                                         event_name, len(events), times, durations)
 
-
+personMSBand = "MSFT Band UPM f6:65"
 def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_activation, night_motion_as_activation,freezing_analysis,festination_analysis,\
  loss_of_balance_analisys, fall_down_analysis, nr_visit, confusion_analysis,lh_number,lhc_number  ):
 
-    path_to_lambda = ""
-    client = MongoClient('localhost', 27017)
+    path_to_lambda = "C:\\Users\\Dell\\Desktop\\"
+    client = Connection('localhost', 27017)
     dbIDs = client['local']['BandPersonIDs']
     uuids = dbIDs.find()
     for uuid in uuids:

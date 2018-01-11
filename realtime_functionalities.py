@@ -576,7 +576,7 @@ def main_realtime_functionalities():
                 results = loss_of_balance_manager(skeletons_4_lb, idSkeleton, stand, requestInterval, requestDate,
                                                   timeStart, results, key)
 
-                hist, behavior_label, behavior_conf = disorientation(skeletons_4_disorientation, timeStart, timeEnd, requestInterval, hist)
+                #hist, behavior_label, behavior_conf = disorientation(skeletons_4_disorientation, timeStart, timeEnd, requestInterval, hist)
 
                 ##TODO: show behavior label only if it is abnormal with high confidence
                 # conf_thresh = 3
@@ -598,7 +598,7 @@ def main_realtime_functionalities():
                         ## writing the results into the db
                         database.write_event(db, event)
                         ## send live notification
-                        #get_token.real_report('MSFT Band UPM f6:65', event['Event'])
+                        get_token.real_report('MSFT Band UPM f6:65', event['Event'])
 
             
             requestDate = requestDate + timedelta(seconds=requestInterval)

@@ -272,14 +272,14 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
                     ## 3d cube close to the camera
                     if zs[ci] <= (kinect_min_distance+cube_size):
 
-                        tracklet_in_cube_append_c([x_filtered[ci],y_filtered[ci],ids[ci]])
+                        tracklet_in_cube_append_c([x_filtered[ci],y_filtered[ci]])
 
 
                     elif zs[ci] > (kinect_min_distance+cube_size) and zs[ci] < (kinect_min_distance+(cube_size*2)): #
-                        tracklet_in_cube_append_middle([x_filtered[ci], y_filtered[ci], ids[ci]])
+                        tracklet_in_cube_append_middle([x_filtered[ci], y_filtered[ci]])
 
                     elif zs[ci]>= kinect_min_distance + (cube_size*2): ##3d cube far from the camera
-                        tracklet_in_cube_append_f([x_filtered[ci],y_filtered[ci],ids[ci]])
+                        tracklet_in_cube_append_f([x_filtered[ci],y_filtered[ci]])
 
 
             #print len(tracklet_in_cube_c),len(tracklet_in_cube_middle),len(tracklet_in_cube_f)
@@ -417,6 +417,7 @@ def measure_joints_accuracy(skeleton_data):
 
 
 def feature_extraction_video_traj(skeleton_data, draw_joints_in_scene, realtime):
+
 
     ##divide image into patches(polygons) and get the positions of each one
     my_room = np.zeros((424,512,3),dtype=np.uint8)
@@ -726,7 +727,6 @@ def freezing_detection(db, time_interval):
 
         print 'Feature extraction {0}ms'.format((t2 - t1).microseconds / 1000)
 
-        print features
         # create sequences
         seq = []
         k = -1
@@ -835,15 +835,15 @@ def festination(db, time_interval):
     # =======================================================================
 
     # get data for the last day
-    timeStart = time_interval[0].strptime("%Y-%m-%d %H:%M:%S")#(requestDate - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-    timeEnd = time_interval[1].strptime("%Y-%m-%d %H:%M:%S")#requestDate.strftime("%Y-%m-%d %H:%M:%S")
+    timeStart = time_interval[0]#.strptime("%Y-%m-%d %H:%M:%S")#(requestDate - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    timeEnd = time_interval[1]#.strptime("%Y-%m-%d %H:%M:%S")#requestDate.strftime("%Y-%m-%d %H:%M:%S")
 
 
 
     d_all = database.read_kinect_data_from_db(collection=db.Kinect,
                                               time_interval=[timeStart, timeEnd],
                                               session='',
-                                              skeletonType='filtered',
+                                              skeletonType=['filtered'],
                                               exclude_columns=['ColorImage', 'DepthImage',
                                                                'InfraImage', 'BodyImage'])
 
