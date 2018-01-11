@@ -16,7 +16,7 @@ import socket
 
 def daily_motion_training(db,avaliable_sensor):
 
-    time_interval = ['2017-07-12 08:03:00', '2017-07-12 08:05:00']
+    time_interval = ['2018-01-09 08:43:13','2018-01-09 08:44:13']
 
     if avaliable_sensor['kinect']:
         print 'kinect for daily motion'
@@ -25,12 +25,12 @@ def daily_motion_training(db,avaliable_sensor):
         kinect_joints = database.read_kinect_joints_from_db(db.Kinect,time_interval,multithread=0)
 
         #extract features from kinect
-        hours = 0
-        minutes = 0
-        seconds = 4
-        date = '2017-07-11'
-        time_slice_size = [hours, minutes, seconds]
-        global_traj_features,patient_ID = kinect_features.feature_extraction_video_traj(kinect_joints, time_slice_size, draw_joints_in_scene=1)
+        #hours = 0
+        #minutes = 0
+        #seconds = 4
+        #date = '2017-07-11'
+        #time_slice_size = [hours, minutes, seconds]
+        global_traj_features = kinect_features.feature_extraction_video_traj(kinect_joints, draw_joints_in_scene=0, realtime=0)
 
         #Get labels from clustering
         #labels_cluster = classifiers.cluster_kmeans(global_traj_features[1],k=3)
@@ -51,9 +51,9 @@ def daily_motion_training(db,avaliable_sensor):
         total_motion = np.sum(kinect_motion_amount[0])
         for n_k, k_data in enumerate(kinect_motion_amount[0]): kinect_motion_amount[0][n_k] = k_data / total_motion
 
-        print kinect_motion_amount
         ##make it dictionary
         kinect_motion_amount = {'stationary': kinect_motion_amount[0][0],'slow_mov': kinect_motion_amount[0][1],'fast_mov': kinect_motion_amount[0][2]}
+        print kinect_motion_amount 
 
     else:
         print '--------------- no data in the time interval ---------------------'
@@ -69,7 +69,7 @@ def daily_motion_training(db,avaliable_sensor):
         print 'add upm band processing'
         upmBand_data = database.read_UPMBand_from_db(db.UPMBand,time_interval)
 
-    return kinect_motion_amount,patient_ID
+    return kinect_motion_amount
 
 
 def daily_motion_test(db,avaliable_sensor):
@@ -217,7 +217,7 @@ def visit_bathroom(db,avaliable_sensor):
 
 def get_freezing_festination(db):
 
-    time_interval = ['2017-07-12 12:24:00', '2017-07-12 12:27:50']
+    time_interval = ['2018-01-09 08:43:13','2018-01-09 08:44:13']
 
     kinect_features.freezing_detection(db, time_interval)
 
@@ -228,8 +228,8 @@ def get_freezing_festination(db):
 def main_nonrealtime_functionalities():
 
     # Perform reidentification
-    json_data = {"init_hour": "11:00:00", "init_date": "23-11-2017", "fin_hour": "12:00:00", "fin_date": "23-11-2017"}
-    r = requests.post("http://"+str(socket.gethostbyname(socket.gethostname()))+":8000/get_all_data/", json=json_data)
+    #json_data = {"init_hour": "11:00:00", "init_date": "23-11-2017", "fin_hour": "12:00:00", "fin_date": "23-11-2017"}
+    #r = requests.post("http://"+str(socket.gethostbyname(socket.gethostname()))+":8000/get_all_data/", json=json_data)
 
     ##INPUT: path of configuration file for available sensor
     parser = argparse.ArgumentParser(description='path to conf file')
@@ -245,20 +245,20 @@ def main_nonrealtime_functionalities():
     #connect to the db
     db = database.connect_db('local')
     
-    #Functionalities for deliverable M12
 
-    #kinect_motion_amount,patient_ID = daily_motion_training(db,avaliable_sensor)
+
+    kinect_motion_amount = daily_motion_training(db,avaliable_sensor)
 
     day_motion_as_activation = as_day_motion(db, avaliable_sensor)
 
-    #night_motion_as_activation = as_night_motion(db, avaliable_sensor)
+    night_motion_as_activation = as_night_motion(db, avaliable_sensor)
 
     #abnormal_behavior_classification_training(db, avaliable_sensor)
 
     #apathy()
 
     ## ---------CERTH
-    #get_freezing_loss_of_balance_detection(db)
+    get_freezing_festination(db)
 
     # summarize HBR, GSR
     #database.summary_MSBand(db,[2017, 7, 6])
@@ -275,28 +275,13 @@ def main_nonrealtime_functionalities():
     nr_visit['number'] = len(nr_visit['beginning'][0])
 
 
-    ## at the end of the day summarize and write all the results in a file that will be uploaded into amazon web services
-
-    ##TODO: complete the method that now are added artificially (i.g. confusion , leave the house)
-    #data = ['daily_motion: ',kinect_motion_amount,'as_day_motion: ', day_motion_as_activation, 'as_night_motion: ', night_motion_as_activation,
-    #        'visit_bathroom: ',nr_visit, 'confusion_behavior_detection: ',{'number':2,'beginning':[],'duration':[]},'leave the house: ' , '1','leave_house_confused: ','0']
-
-
+    ###### summarization ####
+    ##at the end of the day summarize and write all the results in a file that will be uploaded into amazon web services
     # Matching person band with uuid and send summarization for one patient
-    path_to_lambda = ""
-    client = MongoClient('localhost', 27017)
-    dbIDs = client['local']['BandPersonIDs']
-    uuids = dbIDs.find()
-    for uuid in uuids:
-        if uuid["SensorID"] == personMSBand:
-            uuid_person = uuid["PersonID"]
-            final_sumarization = {"date": time.strftime("%Y-%m-%d"), "daily_motion": kinect_motion_amount, "as_day_motion": day_motion_as_activation, "as_night_motion": night_motion_as_activation, "freezing": freezing_analysis, "festination": festination_analysis, "loss_of_balance": loss_of_balance_analisys, "fall_down": fall_down_analysis, "visit_bathroom": nr_visit, "confusion_behaviour_detection": confusion_analysis, "leave_the_house": lh_number, "leave_house_confused": lhc_number}
-            with open(path_to_lambda+uuid_person+'.json', 'w') as outfile:
-                json.dump(final_sumarization, outfile)
+    database.write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_activation, night_motion_as_activation,\
+        freezing_analysis,festination_analysis, loss_of_balance_analisys, fall_down_analysis, nr_visit, confusion_analysis,lh_number,lhc_number  )
+    
 
-
-
-    #database.write_output_file(patient_ID,data,'C:/')
 
 
 

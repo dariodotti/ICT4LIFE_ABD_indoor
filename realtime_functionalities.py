@@ -26,11 +26,11 @@ def disorientation(skeletons, timeStart,timeEnd, requestInterval, hist):
     if len(skeletons)>0:
 
         hours = 0
-        minute = 0
-        second = requestInterval
+        minutes = 0
+        seconds = requestInterval
 
         # extract features from kinect
-        global_traj_features = kinect_features.feature_extraction_video_traj_realtime(np.array(skeletons), draw_joints_in_scene= 0)
+        global_traj_features = kinect_features.feature_extraction_video_traj(np.array(skeletons), draw_joints_in_scene= 0,realtime=1)
 
 
         #####
@@ -491,16 +491,16 @@ def main_realtime_functionalities():
         classifiers.logistic_regression_train(bow_data, np.ravel(labels_bow_data), save_model=0)
 
         ##To test it nonrealtime##
-        date_end = datetime.strptime('2018-01-09 08:44:13', '%Y-%m-%d %H:%M:%S')
+        #date_end = datetime.strptime('2018-01-09 08:44:13', '%Y-%m-%d %H:%M:%S')
         
         ## start loop for realtime
         while True:
 
             results = []
 
-            #requestDate = datetime.utcnow() - timedelta(seconds=requestInterval)
+            requestDate = datetime.utcnow() - timedelta(seconds=requestInterval)
             ##To test it nonrealtime##
-            requestDate = date_end - timedelta(seconds=requestInterval)
+            #requestDate = date_end - timedelta(seconds=requestInterval)
 
             print "--------------------------------------\r\n"
             print requestDate
@@ -601,9 +601,9 @@ def main_realtime_functionalities():
                         #get_token.real_report('MSFT Band UPM f6:65', event['Event'])
 
             
-            #requestDate = requestDate + timedelta(seconds=requestInterval)
+            requestDate = requestDate + timedelta(seconds=requestInterval)
             ##To test it non real time
-            date_end = requestDate
+            #date_end = requestDate
             
             t2 = datetime.now()
             if (t2 - t1).seconds < requestInterval:

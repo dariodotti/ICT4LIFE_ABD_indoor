@@ -249,7 +249,7 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
 
         #get x,y,z of every traj point after smoothing process
         x_filtered,y_filtered,zs = get_coordinate_points(time_slices[i], joint_id= 3)
-        print len(x_filtered)
+        
         
         #initialize histogram of oriented tracklets
         hot_matrix = []
@@ -282,7 +282,7 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
                         tracklet_in_cube_append_f([x_filtered[ci],y_filtered[ci],ids[ci]])
 
 
-            print len(tracklet_in_cube_c),len(tracklet_in_cube_middle),len(tracklet_in_cube_f)
+            #print len(tracklet_in_cube_c),len(tracklet_in_cube_middle),len(tracklet_in_cube_f)
 
             
             for three_d_poly in [tracklet_in_cube_c, tracklet_in_cube_middle, tracklet_in_cube_f]:
@@ -416,7 +416,7 @@ def measure_joints_accuracy(skeleton_data):
     return frames_where_joint_displacement_over_threshold
 
 
-def feature_extraction_video_traj_realtime(skeleton_data, draw_joints_in_scene):
+def feature_extraction_video_traj(skeleton_data, draw_joints_in_scene, realtime):
 
     ##divide image into patches(polygons) and get the positions of each one
     my_room = np.zeros((424,512,3),dtype=np.uint8)
@@ -437,22 +437,26 @@ def feature_extraction_video_traj_realtime(skeleton_data, draw_joints_in_scene):
     ##--------------Feature Extraction-------------##
     #print 'feature extraction'
 
+    if realtime:
+        ## create Histograms of Oriented Tracks directly on skeleton data because only 1 sec is considered
+        HOT_data = histograms_of_oriented_trajectories_realtime(list_poly, skeleton_data)
+    else:
+        ## split considered period is small time intervals
+        hours = 0
+        minutes = 0
+        seconds = 2
+        skeleton_data_in_time_slices = org_data_in_timeIntervals(skeleton_data, [hours,minutes,seconds])
+
+        HOT_data = histograms_of_oriented_trajectories(list_poly, skeleton_data_in_time_slices)
+
+
+        print HOT_data
     
     ## count traj points in each region and create hist
     #occupancy_histograms = occupancy_histograms_in_time_interval(my_room, list_poly, skeleton_data_in_time_slices)
     occupancy_histograms = 0
 
-    #print len(skeleton_data_in_time_slices)
-    ## create Histograms of Oriented Tracks
-    HOT_data = histograms_of_oriented_trajectories_realtime(list_poly, skeleton_data)
-
-
-
-    #print HOT_data.shape
-
     return [occupancy_histograms,HOT_data]
-
-    #cluster_prediction = my_exp.main_experiments(HOT_data)
 
 
 
@@ -610,7 +614,7 @@ def filter_predictions_sum(predictedY, filter_len, filter_val, zero_out=False):
     return predY, s
 
 
-def freezing_detection(db):
+def freezing_detection(db, time_interval):
 
     requestInterval = 3  # seconds
     fps = 32
@@ -621,23 +625,29 @@ def freezing_detection(db):
                          RNN=[1000, False, 1],
                          lrnRate=10**-4, pDrop=0.5)
 
-    model = load_model_weights(model, '\\freeze_1.16.hdf5')
+    #model = load_model_weights(model, '\\freeze_1.16.hdf5')
 
-    requestDate = '2017-09-08 10:56:34'
-    requestDate = datetime.strptime(requestDate, "%Y-%m-%d %H:%M:%S")
+    #requestDate = '2017-09-08 10:56:34'
+    #requestDate = datetime.strptime(requestDate, "%Y-%m-%d %H:%M:%S")
 
     # =======================================================================
 
     t1 = datetime.now()
 
     # get data for the last day
-    timeStart = (requestDate - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-    timeEnd = requestDate.strftime("%Y-%m-%d %H:%M:%S")
+    #timeStart = (requestDate - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    #timeEnd = requestDate.strftime("%Y-%m-%d %H:%M:%S")
+
+    # TEMP: get period with data #
+    timeStart = time_interval[0]
+    timeEnd = time_interval[1]
+
 
     d_all = database.read_MSBand_from_db(collection=db.MSBand,
                                          time_interval=[timeStart, timeEnd],
                                          session='')
 
+    if len(d_all) == 0: print 'no data from the band'
     # =======================================================================
 
     results = dict()
@@ -716,6 +726,7 @@ def freezing_detection(db):
 
         print 'Feature extraction {0}ms'.format((t2 - t1).microseconds / 1000)
 
+        print features
         # create sequences
         seq = []
         k = -1
@@ -824,8 +835,8 @@ def festination(db, time_interval):
     # =======================================================================
 
     # get data for the last day
-    timeStart = time_interval[0].strftime("%Y-%m-%d %H:%M:%S")#(requestDate - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
-    timeEnd = time_interval[1].strftime("%Y-%m-%d %H:%M:%S")#requestDate.strftime("%Y-%m-%d %H:%M:%S")
+    timeStart = time_interval[0].strptime("%Y-%m-%d %H:%M:%S")#(requestDate - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    timeEnd = time_interval[1].strptime("%Y-%m-%d %H:%M:%S")#requestDate.strftime("%Y-%m-%d %H:%M:%S")
 
 
 

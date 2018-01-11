@@ -1299,3 +1299,21 @@ def summarize_events_certh(event_name, path):
 
     return '{0}: {{\'number\': {1}, \'beginning\': {2}, \'duration\': {3}}}'.format(\
                                                         event_name, len(events), times, durations)
+
+
+def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_activation, night_motion_as_activation,freezing_analysis,festination_analysis,\
+ loss_of_balance_analisys, fall_down_analysis, nr_visit, confusion_analysis,lh_number,lhc_number  ):
+
+    path_to_lambda = ""
+    client = MongoClient('localhost', 27017)
+    dbIDs = client['local']['BandPersonIDs']
+    uuids = dbIDs.find()
+    for uuid in uuids:
+        if uuid["SensorID"] == personMSBand:
+            uuid_person = uuid["PersonID"]
+            final_sumarization = {"date": time.strftime("%Y-%m-%d"), "daily_motion": kinect_motion_amount, "as_day_motion": day_motion_as_activation,\
+             "as_night_motion": night_motion_as_activation, "freezing": freezing_analysis, "festination": festination_analysis,\
+              "loss_of_balance": loss_of_balance_analisys, "fall_down": fall_down_analysis, "visit_bathroom": nr_visit, \
+              "confusion_behaviour_detection": confusion_analysis, "leave_the_house": lh_number, "leave_house_confused": lhc_number}
+            with open(path_to_lambda+uuid_person+'.json', 'w') as outfile:
+                json.dump(final_sumarization, outfile)

@@ -112,7 +112,7 @@ def histogram_oriented_tracklets(cube):
     cube = np.array(cube)
 
 
-    step = 10
+    step = 2
 
 
     for i in xrange(0,len(cube)-step):
