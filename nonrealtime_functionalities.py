@@ -120,7 +120,7 @@ def as_day_motion(db, avaliable_sensor,time_interval):
 
         ambient_sensor_activation = ambient_sensor.as_motion(ambient_sensor_data)
 
-        print ambient_sensor_activation
+        #print ambient_sensor_activation
 
         ##save the results according to table
 
@@ -264,6 +264,9 @@ def main_nonrealtime_functionalities():
 
     freezing_analysis,festination_analysis = get_freezing_festination(db)
 
+    ##TODO: open the summarization file from the realtime activities and read the values for :
+    ## loss_of_balance_analisys,fall_down_analysis,confusion_analysis
+
     #freezing_analysis =0
     #festination_analysis=0
     loss_of_balance_analisys=0
@@ -271,6 +274,7 @@ def main_nonrealtime_functionalities():
     confusion_analysis = 0
     lh_number = 0
     lhc_number = 0
+    nr_visit = 0
 
     # summarize HBR, GSR
     #database.summary_MSBand(db,[2017, 7, 6])
@@ -280,17 +284,16 @@ def main_nonrealtime_functionalities():
 
 
     ##if we want the total number of visit we take it from the day and night motion
-    nr_visit={'number': int,'beginning':[],'duration':[]}
+    as_motion_for_json = {key: [] for key in day_motion_as_activation.keys()}
     for k in day_motion_as_activation.keys():
-        nr_visit['beginning'].append(day_motion_as_activation[k][0] + night_motion_as_activation[k][0])
-        nr_visit['duration'].append(day_motion_as_activation[k][1] + night_motion_as_activation[k][1])
-    nr_visit['number'] = len(nr_visit['beginning'][0])
+        as_motion_for_json[k].append({'beginning': day_motion_as_activation[k][0] + night_motion_as_activation[k][0],\
+         'duration':day_motion_as_activation[k][1] + night_motion_as_activation[k][1] })
 
 
     ###### summarization ####
     ##at the end of the day summarize and write all the results in a file that will be uploaded into amazon web services
     # Matching person band with uuid and send summarization for one patient
-    database.write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_activation, night_motion_as_activation,\
+    database.write_summarization_nonrealtime_f_json(kinect_motion_amount, as_motion_for_json, as_motion_for_json,\
         freezing_analysis,festination_analysis, loss_of_balance_analisys, fall_down_analysis, nr_visit, confusion_analysis,lh_number,lhc_number  )
     
 

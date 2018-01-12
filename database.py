@@ -1311,12 +1311,20 @@ def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_a
     client = Connection('localhost', 27017)
     dbIDs = client['local']['BandPersonIDs']
     uuids = dbIDs.find()
+    uuids_list=[]
     for uuid in uuids:
         if uuid["SensorID"] == personMSBand:
             uuid_person = uuid["PersonID"]
-            final_sumarization = {"date": time.strftime("%Y-%m-%d"), "daily_motion": kinect_motion_amount, "as_day_motion": day_motion_as_activation,\
-             "as_night_motion": night_motion_as_activation, "freezing": freezing_analysis, "festination": festination_analysis,\
-              "loss_of_balance": loss_of_balance_analisys, "fall_down": fall_down_analysis, "visit_bathroom": nr_visit, \
-              "confusion_behaviour_detection": confusion_analysis, "leave_the_house": lh_number, "leave_house_confused": lhc_number}
-            with open(path_to_lambda+uuid_person+'.json', 'w') as outfile:
-                json.dump(final_sumarization, outfile)
+            final_sumarization = {'patientID':uuid_person,"date": time.strftime("%Y-%m-%d"),"daily_motion": kinect_motion_amount, "as_day_motion": day_motion_as_activation,\
+                "as_night_motion": night_motion_as_activation, "freezing": freezing_analysis, "festination": festination_analysis,\
+                "loss_of_balance": loss_of_balance_analisys, "fall_down": fall_down_analysis, "visit_bathroom": nr_visit, \
+                "confusion_behaviour_detection": confusion_analysis, "leave_the_house": lh_number, "leave_house_confused": lhc_number }
+            uuids_list.append(final_sumarization)
+    
+    date_in_title = time.strftime("%Y-%m-%d").split('-')
+    with open(path_to_lambda+'HETRA_'+date_in_title[0]+date_in_title[1]+date_in_title[2]+'.json', 'w') as outfile:
+        json.dump(uuids_list, outfile)
+    print 'json summarization file saved!'
+    
+
+    
