@@ -26,6 +26,39 @@ def connect_db(name_db, ip='localhost'):
     return db
 
 
+def read_events(db):
+
+    # The following assumptions are made for the captured events
+    #   - each event is associated with only one sensor (e.g., LossOfBalance <=> Kinect)
+    #   - each event is registered only once (2 Kinects cannot report the same LossOfBalance event)
+	#   - the events are deleted at the end of each day
+
+    r = db.rtevents.find({}).sort('TimeStamp', 1) # 1 = ASCENDING
+
+    events = dict()
+    for i, e in enumerate(r):
+
+        # split events based on event type
+        if events.has_key(e['Event']) == False:
+            events[e['Event']] = dict()
+
+        # further split events by sensorID
+        if events[e['Event']].has_key(e['SensorID']) == False:
+            events[e['Event']][e['SensorID']] = dict()
+
+        # further split events by BodyID
+        if events[e['Event']][e['SensorID']].has_key(e['BodyID']) == False:
+            events[e['Event']][e['SensorID']][e['BodyID']] = []
+
+        # format events as timestamp, duration, sensor
+        dt = datetime.strptime(e['TimeStamp'], "%Y-%m-%d %H:%M:%S")
+        events[e['Event']][e['SensorID']][e['BodyID']].append(
+            [dt, e['Duration'], e['Sensor']])
+
+
+    return events
+
+
 def write_event(db, event):
 
     c = db.rtevents
@@ -36,6 +69,60 @@ def write_exercise_evaluation(db, event):
 
     c = db.exeval
     c.insert_one(event)
+
+
+def summarize_events(db):
+
+    # The following assumptions are made for the captured events
+    #   - if timestamp + duration of event(t) = timestamp of event(t+1),
+    #     the 2 events are combined into 1
+    #   - the bodyID of a person stays the same (to be solved by re-id)
+
+    events = read_events(db)
+
+    # join subsequent events together
+    for e_type in events.keys(): # for each event type
+        for sID in events[e_type].keys(): # for each sensorID
+            for bID in events[e_type][sID].keys(): # for each bodyID
+                for i in range(len(events[e_type][sID][bID]) - 1): # for each event
+                    e_t = events[e_type][sID][bID][i]
+                    e_tp1 = events[e_type][sID][bID][i + 1]
+                    if e_t[0] + timedelta(seconds=e_t[1]) == e_tp1[0]:
+                        # the 2 events can be joined into 1
+                        events[e_type][sID][bID][i + 1][0] = events[e_type][sID][bID][i][0]
+                        events[e_type][sID][bID][i + 1][1] += events[e_type][sID][bID][i][1]
+                        events[e_type][sID][bID][i] = None
+
+    # save the summarized events
+    event_summary = []
+    for e_type in events.keys(): # for each event type
+        for sID in events[e_type].keys(): # for each sensorID
+            for bID in events[e_type][sID].keys(): # for each bodyID
+                for i in range(len(events[e_type][sID][bID])): # for each event
+                    if events[e_type][sID][bID][i] is not None:
+                        events[e_type][sID][bID][i].append(e_type)
+                        events[e_type][sID][bID][i].append(bID)
+                        event_summary.append(events[e_type][sID][bID][i])
+
+    # format events into the desired output
+    event_summary = np.array(event_summary)
+    unique_bIDs = np.unique(event_summary[:, 4]).astype(int)
+    output = {bID: {} for bID in unique_bIDs}
+    for bID in unique_bIDs: # for each person
+        e_per_bID = event_summary[event_summary[:, 4] == bID]
+        for e_type in np.unique(e_per_bID[:, 3]).astype(str): # for each event type
+            n_events = np.sum(e_per_bID[:, 3] == e_type)
+            e = []
+            for i in range(n_events):
+                e_per_bID_per_e_type = e_per_bID[e_per_bID[:, 3] == e_type]
+                ts = e_per_bID_per_e_type[i][0].strftime("%H:%M:%S")
+                dur = e_per_bID_per_e_type[i][1]
+                e.append({"beginning": ts, "duration": str(dur)})
+            if n_events > 0:
+                output[bID][e_type] = dict([("number", n_events), ("event", e)])
+
+
+    return output
 
 
 def delete_sensor_documents(db, time_interval):
