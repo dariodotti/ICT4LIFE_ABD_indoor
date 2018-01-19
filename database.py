@@ -6,6 +6,7 @@ import cPickle
 import multiprocessing
 import time
 import json
+import pandas as pd
 #from multiprocessing.dummy import Pool as threadPool
 
 
@@ -302,7 +303,6 @@ def read_kinect_joints_from_db(kinect_collection,time_interval,multithread):
 
     ## start to find from the most recent ##
     frame_with_joints =kinect_collection.find().sort([('_id',pymongo.ASCENDING)])#pymongo.DESCENDING
-    
 
 
     joint_points = []
@@ -700,249 +700,242 @@ def summary_MSBand(db, inpdate=None):
 
     """
 
-    import database
-	import pandas as pd
-	from datetime import datetime, timedelta
-	import numpy as np
-	import time
+    colMSBand = db.MSBand
 
+    if inpdate==None:
+        date = datetime.now()
+    else:
+        date = datetime(inpdate[0], inpdate[1], inpdate[2], 0, 0, 0)
 
-	colMSBand = db.MSBand
+    timeStart = date.strftime("%Y-%m-%d 00:00:00")
+    timeEnd = date.strftime("%Y-%m-%d 23:59:59")
 
-	if inpdate==None:
-		date = datetime.now()
-	else:
-		date = datetime(inpdate[0], inpdate[1], inpdate[2], 0, 0, 0)
-
-	timeStart = date.strftime("%Y-%m-%d 00:00:00")
-	timeEnd = date.strftime("%Y-%m-%d 23:59:59")
-
-	d_all = database.read_MSBand_from_db_asDict(collection=colMSBand,
+    d_all = read_MSBand_from_db_asDict(collection=colMSBand,
 												time_interval=[timeStart, timeEnd],
 												session='')
 
-	for key in d_all.keys():
+    for key in d_all.keys():
 
-		d = d_all[key]
+        d = d_all[key]
 
-		if key == '':
-			print 'Discarding {0} measurements with invalid key \'{1}\''.format(len(d), key)
-			continue
+        if key == '':
+            print 'Discarding {0} measurements with invalid key \'{1}\''.format(len(d), key)
+            continue
 
-		# Remove duplicates and detect when minute/hour is changing
-		AllHBR_S = []
-		AllGSR_S = []
-		lastHBRTimestamp = []
-		lastGSRTimestamp = []
+        # Remove duplicates and detect when minute/hour is changing
+        AllHBR_S = []
+        AllGSR_S = []
+        lastHBRTimestamp = []
+        lastGSRTimestamp = []
 
-		qq=timedelta(seconds=-1)
+        qq=timedelta(seconds=-1)
 
-		SensorIDs = dict()
+        SensorIDs = dict()
 
-		SensorIDs[key] = len(SensorIDs)
-		AllHBR_S.append(pd.DataFrame())
-		AllGSR_S.append(pd.DataFrame())
-		lastHBRTimestamp.append(d[0]['hrTS'] + qq)
-		lastGSRTimestamp.append(d[0]['gsrTS'] + qq)
-		numberOfBands = len(SensorIDs)
+        SensorIDs[key] = len(SensorIDs)
+        AllHBR_S.append(pd.DataFrame())
+        AllGSR_S.append(pd.DataFrame())
+        lastHBRTimestamp.append(d[0]['hrTS'] + qq)
+        lastGSRTimestamp.append(d[0]['gsrTS'] + qq)
+        numberOfBands = len(SensorIDs)
 
-		start_time = time.time()
-		print "measuring"
-		for i in range(len(d)):
+        start_time = time.time()
+        print "measuring"
+        for i in range(len(d)):
 
-			HBR_NMI = False
-			HBR_NHI = False
-			GSR_NMI = False
-			GSR_NHI = False
+            HBR_NMI = False
+            HBR_NHI = False
+            GSR_NMI = False
+            GSR_NHI = False
 
-			Band = SensorIDs[key]
-			if d[i]['hrTS']!=lastHBRTimestamp[Band]:
-				if d[i]['hrTS'].minute!=lastHBRTimestamp[Band].minute:
-					HBR_NMI=True
-				if d[i]['hrTS'].hour!=lastHBRTimestamp[Band].hour:
-					HBR_NHI=True
+            Band = SensorIDs[key]
+            if d[i]['hrTS']!=lastHBRTimestamp[Band]:
+                if d[i]['hrTS'].minute!=lastHBRTimestamp[Band].minute:
+                    HBR_NMI=True
+                if d[i]['hrTS'].hour!=lastHBRTimestamp[Band].hour:
+                    HBR_NHI=True
 
-				if d[i]['hr'] > 0 and d[i]['hrConfidence'] > 0:
-					AllHBR_S[Band] = AllHBR_S[Band].append({'HBR Time': d[i]['hrTS'],'New Minute Index':HBR_NMI,'New Hour Index':HBR_NHI, 'HBR value': d[i]['hr']}, ignore_index=True)
-					lastHBRTimestamp[Band] = d[i]['hrTS']
+                if d[i]['hr'] > 0 and d[i]['hrConfidence'] > 0:
+                    AllHBR_S[Band] = AllHBR_S[Band].append({'HBR Time': d[i]['hrTS'],'New Minute Index':HBR_NMI,'New Hour Index':HBR_NHI, 'HBR value': d[i]['hr']}, ignore_index=True)
+                    lastHBRTimestamp[Band] = d[i]['hrTS']
 
-			if d[i]['gsrTS']!=lastGSRTimestamp:
-				if d[i]['gsrTS'].minute!=lastGSRTimestamp[Band].minute:
-					GSR_NMI=True
-				if d[i]['gsrTS'].hour!=lastGSRTimestamp[Band].hour:
-					GSR_NHI=True
+            if d[i]['gsrTS']!=lastGSRTimestamp:
+                if d[i]['gsrTS'].minute!=lastGSRTimestamp[Band].minute:
+                    GSR_NMI=True
+                if d[i]['gsrTS'].hour!=lastGSRTimestamp[Band].hour:
+                    GSR_NHI=True
 
-				if d[i]['gsr'] > 0 and d[i]['gsr'] < 200000:
-					AllGSR_S[Band] = AllGSR_S[Band].append({'GSR Time': d[i]['gsrTS'],'New Minute Index':GSR_NMI,'New Hour Index':GSR_NHI, 'GSR value': d[i]['gsr']}, ignore_index=True)
-					lastGSRTimestamp[Band] = d[i]['gsrTS']
+                if d[i]['gsr'] > 0 and d[i]['gsr'] < 200000:
+                    AllGSR_S[Band] = AllGSR_S[Band].append({'GSR Time': d[i]['gsrTS'],'New Minute Index':GSR_NMI,'New Hour Index':GSR_NHI, 'GSR value': d[i]['gsr']}, ignore_index=True)
+                    lastGSRTimestamp[Band] = d[i]['gsrTS']
 
-		elapsed_time = time.time() - start_time
-		print elapsed_time
+        elapsed_time = time.time() - start_time
+        print elapsed_time
 
-		t=list(SensorIDs.keys())
-		BandNames = list(SensorIDs.keys())
-		for i in range(len(t)):
-			BandNames[SensorIDs[t[i]]] = t[i]
+        t=list(SensorIDs.keys())
+        BandNames = list(SensorIDs.keys())
+        for i in range(len(t)):
+            BandNames[SensorIDs[t[i]]] = t[i]
 
-		import unicodedata
+        import unicodedata
 
-		for i in range(len(BandNames)):
-			BandNames[i]= unicodedata.normalize('NFKD', BandNames[i]).encode('ascii','ignore')
-			BandNames[i] = BandNames[i].replace(':','_')
+        for i in range(len(BandNames)):
+            BandNames[i]= unicodedata.normalize('NFKD', BandNames[i]).encode('ascii','ignore')
+            BandNames[i] = BandNames[i].replace(':','_')
 
-		for band in range(numberOfBands):
+        for band in range(numberOfBands):
 
-			AllHBR = AllHBR_S[band]
-			AllGSR = AllGSR_S[band]
+            AllHBR = AllHBR_S[band]
+            AllGSR = AllGSR_S[band]
 
-			# Collect minute and hour data
-			# HBR
-			ww=AllHBR.loc[AllHBR['New Minute Index']==1.0]
-			HDR_min_idx = np.array(ww.index.tolist())
+            # Collect minute and hour data
+            # HBR
+            ww=AllHBR.loc[AllHBR['New Minute Index']==1.0]
+            HDR_min_idx = np.array(ww.index.tolist())
 
-			ww=AllHBR.loc[AllHBR['New Hour Index']==1.0]
-			HDR_hour_idx=np.zeros([1,1])
-			if ww.empty==0:
-				HDR_hour_idx = np.append(HDR_hour_idx,ww.index)
-			HDR_hour_idx = np.append(HDR_hour_idx,AllHBR.shape[0])
+            ww=AllHBR.loc[AllHBR['New Hour Index']==1.0]
+            HDR_hour_idx=np.zeros([1,1])
+            if ww.empty==0:
+                HDR_hour_idx = np.append(HDR_hour_idx,ww.index)
+            HDR_hour_idx = np.append(HDR_hour_idx,AllHBR.shape[0])
 
-			# GSR
-			ww=AllGSR.loc[AllGSR['New Minute Index']==1.0]
-			GSR_min_idx = np.array(ww.index.tolist())
+            # GSR
+            ww=AllGSR.loc[AllGSR['New Minute Index']==1.0]
+            GSR_min_idx = np.array(ww.index.tolist())
 
-			ww=AllGSR.loc[AllGSR['New Hour Index']==1.0]
-			GSR_hour_idx=np.zeros([1,1])
-			if ww.empty==0:
-				GSR_hour_idx = np.append(GSR_hour_idx,ww.index)
-			GSR_hour_idx = np.append(GSR_hour_idx,AllGSR.shape[0])
+            ww=AllGSR.loc[AllGSR['New Hour Index']==1.0]
+            GSR_hour_idx=np.zeros([1,1])
+            if ww.empty==0:
+                GSR_hour_idx = np.append(GSR_hour_idx,ww.index)
+            GSR_hour_idx = np.append(GSR_hour_idx,AllGSR.shape[0])
 
-			HBR_PerMin =[]
-			m=AllHBR.loc[HDR_min_idx]['HBR value']
-			HBR_PerMin.append(m.tolist())
-			m=AllHBR.loc[HDR_min_idx]['HBR Time'].dt.hour
-			HBR_PerMin.append(m.tolist())
-			m=AllHBR.loc[HDR_min_idx]['HBR Time'].dt.minute
-			HBR_PerMin.append(m.tolist())
+            HBR_PerMin =[]
+            m=AllHBR.loc[HDR_min_idx]['HBR value']
+            HBR_PerMin.append(m.tolist())
+            m=AllHBR.loc[HDR_min_idx]['HBR Time'].dt.hour
+            HBR_PerMin.append(m.tolist())
+            m=AllHBR.loc[HDR_min_idx]['HBR Time'].dt.minute
+            HBR_PerMin.append(m.tolist())
 
-			GSR_PerMin =[]
-			m=AllGSR.loc[GSR_min_idx]['GSR value']
-			GSR_PerMin.append(m.tolist())
-			m=AllGSR.loc[GSR_min_idx]['GSR Time'].dt.hour
-			GSR_PerMin.append(m.tolist())
-			m=AllGSR.loc[GSR_min_idx]['GSR Time'].dt.minute
-			GSR_PerMin.append(m.tolist())
+            GSR_PerMin =[]
+            m=AllGSR.loc[GSR_min_idx]['GSR value']
+            GSR_PerMin.append(m.tolist())
+            m=AllGSR.loc[GSR_min_idx]['GSR Time'].dt.hour
+            GSR_PerMin.append(m.tolist())
+            m=AllGSR.loc[GSR_min_idx]['GSR Time'].dt.minute
+            GSR_PerMin.append(m.tolist())
 
-			# Statistics per hour
-			# HBR
-			timestamps_HBR=[]
-			stats_HBR =[]
-			for i in range(len(HDR_hour_idx)-1):
-				hour_HBR_data = AllHBR.loc[HDR_hour_idx[i]:HDR_hour_idx[i+1]]['HBR value']
-				s=[]
-				t = hour_HBR_data.describe()
-				s.append([t['50%'], t['25%'],t['75%'],2.5*t['25%']-1.5*t['75%'],2.5*t['75%']-1.5*t['25%']])
-				outlier_low  = hour_HBR_data.loc[hour_HBR_data<s[0][3]].tolist()
-				outlier_high = hour_HBR_data.loc[hour_HBR_data>s[0][4]].tolist()
-				s.append(outlier_low)
-				s.append(outlier_high)
-				stats_HBR.append(s)
-				timestamps_HBR.append(AllHBR.loc[HDR_hour_idx[i]]['HBR Time'])
+            # Statistics per hour
+            # HBR
+            timestamps_HBR=[]
+            stats_HBR =[]
+            for i in range(len(HDR_hour_idx)-1):
+                hour_HBR_data = AllHBR.loc[HDR_hour_idx[i]:HDR_hour_idx[i+1]]['HBR value']
+                s=[]
+                t = hour_HBR_data.describe()
+                s.append([t['50%'], t['25%'],t['75%'],2.5*t['25%']-1.5*t['75%'],2.5*t['75%']-1.5*t['25%']])
+                outlier_low  = hour_HBR_data.loc[hour_HBR_data<s[0][3]].tolist()
+                outlier_high = hour_HBR_data.loc[hour_HBR_data>s[0][4]].tolist()
+                s.append(outlier_low)
+                s.append(outlier_high)
+                stats_HBR.append(s)
+                timestamps_HBR.append(AllHBR.loc[HDR_hour_idx[i]]['HBR Time'])
 
-			# GSR
-			timestamps_GSR=[]
-			stats_GSR =[]
-			for i in range(len(GSR_hour_idx)-1):
-				hour_GSR_data = AllGSR.loc[GSR_hour_idx[i]:GSR_hour_idx[i+1]]['GSR value']
-				s=[]
-				t = hour_GSR_data.describe()
-				s.append([t['50%'], t['25%'],t['75%'],2.5*t['25%']-1.5*t['75%'],2.5*t['75%']-1.5*t['25%']])
-				outlier_low  = hour_GSR_data.loc[hour_GSR_data<s[0][3]].tolist()
-				outlier_high = hour_GSR_data.loc[hour_GSR_data>s[0][4]].tolist()
-				s.append(outlier_low)
-				s.append(outlier_high)
-				stats_GSR.append(s)
-				timestamps_GSR.append(AllGSR.loc[GSR_hour_idx[i]]['GSR Time'])
+            # GSR
+            timestamps_GSR=[]
+            stats_GSR =[]
+            for i in range(len(GSR_hour_idx)-1):
+                hour_GSR_data = AllGSR.loc[GSR_hour_idx[i]:GSR_hour_idx[i+1]]['GSR value']
+                s=[]
+                t = hour_GSR_data.describe()
+                s.append([t['50%'], t['25%'],t['75%'],2.5*t['25%']-1.5*t['75%'],2.5*t['75%']-1.5*t['25%']])
+                outlier_low  = hour_GSR_data.loc[hour_GSR_data<s[0][3]].tolist()
+                outlier_high = hour_GSR_data.loc[hour_GSR_data>s[0][4]].tolist()
+                s.append(outlier_low)
+                s.append(outlier_high)
+                stats_GSR.append(s)
+                timestamps_GSR.append(AllGSR.loc[GSR_hour_idx[i]]['GSR Time'])
 
-			# Save to file
-			# HBR (one per minute)
-			filename = 'HBR_per_minute_'+str(inpdate[0])+'-'+str(inpdate[1])+'-'+str(inpdate[2])+ '_' + BandNames[band] +'.txt'
-			print filename
-			file = open(filename, 'w')
+            # Save to file
+            # HBR (one per minute)
+            filename = 'HBR_per_minute_'+str(inpdate[0])+'-'+str(inpdate[1])+'-'+str(inpdate[2])+ '_' + BandNames[band] +'.txt'
+            print filename
+            file = open(filename, 'w')
 
-			ss="{'number':"+str(len(HBR_PerMin[0]))+", 'time':["
-			for i in range(len(HBR_PerMin[0])):
-				ss=ss+("['"+'{0:02d}:{1:02d}'.format(HBR_PerMin[1][i], HBR_PerMin[2][i])+"']")
+            ss="{'number':"+str(len(HBR_PerMin[0]))+", 'time':["
+            for i in range(len(HBR_PerMin[0])):
+                ss=ss+("['"+'{0:02d}:{1:02d}'.format(HBR_PerMin[1][i], HBR_PerMin[2][i])+"']")
 
-				if i<len(HBR_PerMin[0])-1:
-					ss=ss+","
-			ss=ss+"], 'HBR':"+str((HBR_PerMin[0]))+'}'
+                if i<len(HBR_PerMin[0])-1:
+                    ss=ss+","
+            ss=ss+"], 'HBR':"+str((HBR_PerMin[0]))+'}'
 
-			file.write(ss)
-			file.close()
+            file.write(ss)
+            file.close()
 
-			# GSR (one per minute)
-			filename = 'GSR_per_minute_'+str(inpdate[0])+'-'+str(inpdate[1])+'-'+str(inpdate[2])+ '_' + BandNames[band] +'.txt'
-			print filename
-			file = open(filename, 'w')
+            # GSR (one per minute)
+            filename = 'GSR_per_minute_'+str(inpdate[0])+'-'+str(inpdate[1])+'-'+str(inpdate[2])+ '_' + BandNames[band] +'.txt'
+            print filename
+            file = open(filename, 'w')
 
-			ss="{'number':"+str(len(GSR_PerMin[0]))+", 'time':["
-			for i in range(len(GSR_PerMin[0])):
-				ss=ss+("['"+'{0:02d}:{1:02d}'.format(GSR_PerMin[1][i], GSR_PerMin[2][i])+"']")
+            ss="{'number':"+str(len(GSR_PerMin[0]))+", 'time':["
+            for i in range(len(GSR_PerMin[0])):
+                ss=ss+("['"+'{0:02d}:{1:02d}'.format(GSR_PerMin[1][i], GSR_PerMin[2][i])+"']")
 
-				if i<len(GSR_PerMin[0])-1:
-					ss=ss+","
-			ss=ss+"], 'GSR':"+str((GSR_PerMin[0]))+'}'
+                if i<len(GSR_PerMin[0])-1:
+                    ss=ss+","
+            ss=ss+"], 'GSR':"+str((GSR_PerMin[0]))+'}'
 
-			file.write(ss)
-			file.close()
+            file.write(ss)
+            file.close()
 
-			# HBR (boxplot stats)
-			filename = 'HBR_per_hour_stats_'+str(inpdate[0])+'-'+str(inpdate[1])+'-'+str(inpdate[2])+ '_' + BandNames[band] +'.txt'
-			file = open(filename, 'w')
+            # HBR (boxplot stats)
+            filename = 'HBR_per_hour_stats_'+str(inpdate[0])+'-'+str(inpdate[1])+'-'+str(inpdate[2])+ '_' + BandNames[band] +'.txt'
+            file = open(filename, 'w')
 
-			ss="{'number':"+str(len(stats_HBR))+", 'time':["
-			for i in range(len(stats_HBR)-1):
-				ss=ss+ "['"+ '{0:02d}:{1:02d}'.format(timestamps_HBR[i].hour, timestamps_HBR[i].minute) + "]"
-			ss=ss+ "['"+ '{0:02d}:{1:02d}'.format(timestamps_HBR[len(stats_HBR)-1].hour, timestamps_HBR[len(stats_HBR)-1].minute) + "]"
+            ss="{'number':"+str(len(stats_HBR))+", 'time':["
+            for i in range(len(stats_HBR)-1):
+                ss=ss+ "['"+ '{0:02d}:{1:02d}'.format(timestamps_HBR[i].hour, timestamps_HBR[i].minute) + "]"
+            ss=ss+ "['"+ '{0:02d}:{1:02d}'.format(timestamps_HBR[len(stats_HBR)-1].hour, timestamps_HBR[len(stats_HBR)-1].minute) + "]"
 
-			for i in range(len(stats_HBR)):
-				ss=ss+", ['50%':"+str(stats_HBR[i][0][0])
-				ss=ss+", '25%':"+str(stats_HBR[i][0][1])
-				ss=ss+", '75%':"+str(stats_HBR[i][0][2])
-				ss=ss+", '+1.5IQR':"+str(stats_HBR[i][0][3])
-				ss=ss+", '-1.5IQR':"+str(stats_HBR[i][0][4])
-				ss=ss+", 'outliers_below':"+str(stats_HBR[i][1])
-				ss=ss+", 'outliers_above':"+str(stats_HBR[i][2])
-				ss=ss +']'
+            for i in range(len(stats_HBR)):
+                ss=ss+", ['50%':"+str(stats_HBR[i][0][0])
+                ss=ss+", '25%':"+str(stats_HBR[i][0][1])
+                ss=ss+", '75%':"+str(stats_HBR[i][0][2])
+                ss=ss+", '+1.5IQR':"+str(stats_HBR[i][0][3])
+                ss=ss+", '-1.5IQR':"+str(stats_HBR[i][0][4])
+                ss=ss+", 'outliers_below':"+str(stats_HBR[i][1])
+                ss=ss+", 'outliers_above':"+str(stats_HBR[i][2])
+                ss=ss +']'
 
-			ss=ss +'}'
+            ss=ss +'}'
 
-			file.write(ss)
-			file.close()
+            file.write(ss)
+            file.close()
 
-			# GSR (boxplot stats)
-			filename = 'GSR_per_hour_stats_'+str(inpdate[0])+'-'+str(inpdate[1])+'-'+str(inpdate[2])+ '_' + BandNames[band] +'.txt'
-			file = open(filename, 'w')
+            # GSR (boxplot stats)
+            filename = 'GSR_per_hour_stats_'+str(inpdate[0])+'-'+str(inpdate[1])+'-'+str(inpdate[2])+ '_' + BandNames[band] +'.txt'
+            file = open(filename, 'w')
 
-			ss="{'number':"+str(len(stats_GSR))+", 'time':["
-			for i in range(len(stats_GSR)-1):
-				ss=ss+ "['"+ '{0:02d}:{1:02d}'.format(timestamps_GSR[i].hour, timestamps_GSR[i].minute) + "]"
-			ss=ss+ "['"+ '{0:02d}:{1:02d}'.format(timestamps_GSR[len(stats_GSR)-1].hour, timestamps_GSR[len(stats_GSR)-1].minute) + "]"
+            ss="{'number':"+str(len(stats_GSR))+", 'time':["
+            for i in range(len(stats_GSR)-1):
+                ss=ss+ "['"+ '{0:02d}:{1:02d}'.format(timestamps_GSR[i].hour, timestamps_GSR[i].minute) + "]"
+            ss=ss+ "['"+ '{0:02d}:{1:02d}'.format(timestamps_GSR[len(stats_GSR)-1].hour, timestamps_GSR[len(stats_GSR)-1].minute) + "]"
 
-			for i in range(len(stats_GSR)):
-				ss=ss+", ['50%':"+str(stats_GSR[i][0][0])
-				ss=ss+", '25%':"+str(stats_GSR[i][0][1])
-				ss=ss+", '75%':"+str(stats_GSR[i][0][2])
-				ss=ss+", '+1.5IQR':"+str(stats_GSR[i][0][3])
-				ss=ss+", '-1.5IQR':"+str(stats_GSR[i][0][4])
-				ss=ss+", 'outliers_below':"+str(stats_GSR[i][1])
-				ss=ss+", 'outliers_above':"+str(stats_GSR[i][2])
-				ss=ss +']'
+            for i in range(len(stats_GSR)):
+                ss=ss+", ['50%':"+str(stats_GSR[i][0][0])
+                ss=ss+", '25%':"+str(stats_GSR[i][0][1])
+                ss=ss+", '75%':"+str(stats_GSR[i][0][2])
+                ss=ss+", '+1.5IQR':"+str(stats_GSR[i][0][3])
+                ss=ss+", '-1.5IQR':"+str(stats_GSR[i][0][4])
+                ss=ss+", 'outliers_below':"+str(stats_GSR[i][1])
+                ss=ss+", 'outliers_above':"+str(stats_GSR[i][2])
+                ss=ss +']'
 
-			ss=ss +'}'
+            ss=ss +'}'
 
-			file.write(ss)
-			file.close()
+            file.write(ss)
+            file.close()
 
 
 def summarize_events_certh(event_name, path):
@@ -990,7 +983,7 @@ personMSBand = "MSFT Band UPM f6:65"
 def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_activation, night_motion_as_activation,freezing_analysis,festination_analysis,\
  loss_of_balance_analisys, fall_down_analysis, nr_visit, confusion_analysis,lh_number,lhc_number  ):
 
-    path_to_lambda = "C:\\Users\\Dell\\Desktop\\"
+    path_to_lambda = "C:/libs3/"
     client = Connection('localhost', 27017)
     dbIDs = client['local']['BandPersonIDs']
     uuids = dbIDs.find()
@@ -1005,9 +998,14 @@ def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_a
             uuids_list.append(final_sumarization)
     
     date_in_title = time.strftime("%Y-%m-%d").split('-')
-    with open(path_to_lambda+'HETRA_'+date_in_title[0]+date_in_title[1]+date_in_title[2]+'.json', 'w') as outfile:
+    with open(path_to_lambda+'abd_'+date_in_title[0]+date_in_title[1]+date_in_title[2]+'.json', 'w') as outfile:
         json.dump(uuids_list, outfile)
-    print 'json summarization file saved!'
+
+    from lib_amazon_web_server import S3FileManager
+    fileManager = S3FileManager.S3FileManger('hetra/out', '')
+    fileManager.upload_file('C:/libs3/'+ 'abd_'+date_in_title[0]+date_in_title[1]+date_in_title[2]+'.json', \
+                            'abd_'+date_in_title[0]+date_in_title[1]+date_in_title[2]+'.json')
+    print 'json summarization uploaded to the amazon web server!'
     
 
     
