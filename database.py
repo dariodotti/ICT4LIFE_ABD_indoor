@@ -7,6 +7,7 @@ import multiprocessing
 import time
 import json
 import pandas as pd
+from lib_amazon_web_server import S3FileManager
 #from multiprocessing.dummy import Pool as threadPool
 
 
@@ -302,7 +303,7 @@ def read_kinect_joints_from_db(kinect_collection,time_interval,multithread):
     #frame_with_joints = kinect_collection.find({})
 
     ## start to find from the most recent ##
-    frame_with_joints =kinect_collection.find().sort([('_id',pymongo.ASCENDING)])#pymongo.DESCENDING
+    frame_with_joints =kinect_collection.find().sort([('_id',pymongo.DESCENDING)])#pymongo.DESCENDING
 
 
     joint_points = []
@@ -370,13 +371,13 @@ def read_kinect_joints_from_db(kinect_collection,time_interval,multithread):
 
                         joint_points.append(frame_body_joints)
 
-            elif f['_id'] > end_period:
+            #elif f['_id'] > end_period:
+                #break
+            elif f['_id'] < begin_period:
                 break
-##            elif f['_id'] < begin_period:
-##                break
 
 
-    #joint_points = joint_points[::-1]
+    joint_points = joint_points[::-1]
     print 'retrieved trajectory matrix size: ', np.array(joint_points).shape
     return joint_points
 
@@ -988,24 +989,25 @@ def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_a
     dbIDs = client['local']['BandPersonIDs']
     uuids = dbIDs.find()
     uuids_list=[]
-    for uuid in uuids:
-        if uuid["SensorID"] == personMSBand:
-            uuid_person = uuid["PersonID"]
+    for uuid_person in ['d20d7fc0-c0eb-4d49-8551-745bc149594e',"c2c3ed00-c5fd-433f-9db7-4bf6dce11488"]:#uuids:
+        if 1:#uuid["SensorID"] == personMSBand:
+            #uuid_person = uuid["PersonID"]
             final_sumarization = {'patientID':uuid_person,"date": time.strftime("%Y-%m-%d"),"daily_motion": kinect_motion_amount, "as_day_motion": day_motion_as_activation,\
                 "as_night_motion": night_motion_as_activation, "freezing": freezing_analysis, "festination": festination_analysis,\
                 "loss_of_balance": loss_of_balance_analisys, "fall_down": fall_down_analysis, "visit_bathroom": nr_visit, \
                 "confusion_behaviour_detection": confusion_analysis, "leave_the_house": lh_number, "leave_house_confused": lhc_number }
-            uuids_list.append(final_sumarization)
+            #uuids_list.append(final_sumarization)
     
-    date_in_title = time.strftime("%Y-%m-%d").split('-')
-    with open(path_to_lambda+'abd_'+date_in_title[0]+date_in_title[1]+date_in_title[2]+'.json', 'w') as outfile:
-        json.dump(uuids_list, outfile)
+            date_in_title = time.strftime("%Y-%m-%d").split('-')
+            filename_json = path_to_lambda+uuid_person + '_' + date_in_title[0]+date_in_title[1]+date_in_title[2]+ '.json'
+            with open(filename_json, 'w') as outfile:
+                json.dump(final_sumarization, outfile)
 
-    from lib_amazon_web_server import S3FileManager
-    fileManager = S3FileManager.S3FileManger('hetra/out', '')
-    fileManager.upload_file('C:/libs3/'+ 'abd_'+date_in_title[0]+date_in_title[1]+date_in_title[2]+'.json', \
-                            'abd_'+date_in_title[0]+date_in_title[1]+date_in_title[2]+'.json')
-    print 'json summarization uploaded to the amazon web server!'
+
+            fileManager = S3FileManager.S3FileManger('hetra/out', '')
+            fileManager.upload_file(filename_json, \
+                                    uuid_person + '_' + date_in_title[0]+date_in_title[1]+date_in_title[2]+ '.json')
+            print 'json summarization uploaded to the amazon web server!'
     
 
     

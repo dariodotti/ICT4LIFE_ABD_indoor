@@ -17,9 +17,9 @@ GET_PROFESSIONALS_FROM_USER2 = "https://ict4life-services.articatelemedicina.com
 
 # GET_PROFESSIONALS_FROM_USER = "https://ict4life-services.articatelemedicina.com/artica-uno-personas/profile/professional/"
 event_to_send = "fall down"
-uuidUser = "c2c3ed00-c5fd-433f-9db7-4bf6dce11488"
-band_name = "MSFT Band UPM f6:65"
-band_name_comp = "MSFT Band UPM f6:65"
+uuidUser = 'd20d7fc0-c0eb-4d49-8551-745bc149594e' #"c2c3ed00-c5fd-433f-9db7-4bf6dce11488"
+band_name = "Alejandr's Band 98:71" #"MSFT Band UPM f6:65"
+band_name_comp = "Alejandr's Band 98:71"#"MSFT Band UPM f6:65"
 
 
 def real_report(band_name, event_to_send):
@@ -39,11 +39,11 @@ def real_report(band_name, event_to_send):
         uuidUser = config.get('user', 'uuidUser')
     # print "user UuiD  %s" % uuidUser
     except ConfigParser.NoOptionError as e:
-        # print "error en configuracion, wrong configuration in : %s"  % e.option
+        print "error en configuracion, wrong configuration in : %s"  % e.option
         sys.exit([arg])
     # print "usuario"+USER
 
-    if band_name_comp == band_name:
+    if 1:#band_name_comp == band_name:
         try:
             USER2 = "hetra_es@ict4life.eu"
             PASSWORD2 = "123456789"
@@ -66,19 +66,26 @@ def real_report(band_name, event_to_send):
             # print RESP.json()
             # uuid_To_send =  str(RESP.json()['persons'][0]['uuidPerson'])
             uuids_prof = []
-            for i in range(0, 5):
-                uuid_To_send = str(RESP.json()['impersonationInfo'][i]['uuidUser'])
+            for i in RESP.json()['impersonationInfo']:
+                uuid_To_send = str(i['uuidUser'])
                 uuids_prof.append(uuid_To_send)
             # print uuid_To_send
         except Exception as e:
             print "ERROR " + e.message
             return "authentication failed, notifications will not be sent"
         try:
-            # enviar datos
-            for i in uuids_prof:
-                message_content = MessageVO(title='Warning', text=str(event_to_send), uuid_to=i, priority="HIGH")
-                com = Communication(message_content)
-                com.send
+            # enviar datos professionals
+            # for i in uuids_prof:
+            #     message_content = MessageVO(title='Warning', text=str(event_to_send), uuid_to=i, priority="HIGH")
+            #     com = Communication(message_content)
+            #     print 'sending ....'
+            #     com.send
+            message_content = MessageVO(title='Warning', text=str(event_to_send), uuid_to=uuidUser, priority="HIGH")
+            com = Communication(message_content)
+            print 'sending  warning to caregivers and professionals! ....'
+            com.send
+
+            print '------ notification sent successfully!! -------'
         except Exception as e:
             print "ERROR " + e.message
     else:

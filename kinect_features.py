@@ -13,21 +13,24 @@ import database
 import visualization as vis
 import classifiers
 
-kinect_max_distance= 4.5
+kinect_max_distance= 6.5
 kinect_min_distance=0.5
 cube_size = (kinect_max_distance-kinect_min_distance)/3
 
 
 def org_data_in_timeIntervals(skeleton_data, timeInterval_slice):
     #get all time data from the list dropping the decimal
-    content_time = map(lambda line: line[0,1].split(' ')[1].split('.')[0],skeleton_data)
-
+    #content_time = map(lambda line: line[0,1].split(' ')[1].split('.')[0],skeleton_data)
+    content_time = map(lambda line: line[0, 1][:-7], skeleton_data)
+    
     #date time library
 
-    init_t = datetime.strptime(content_time[0],'%H:%M:%S') #+ ' ' + timeInterval_slice[3]
-    end_t = datetime.strptime(content_time[len(content_time)-1],'%H:%M:%S')
+    init_t = datetime.strptime( content_time[0],'%Y-%m-%d %H:%M:%S') #+ ' ' + timeInterval_slice[3]
+    end_t = datetime.strptime(content_time[len(content_time)-1],'%Y-%m-%d %H:%M:%S')
     x = datetime.strptime('0:0:0','%H:%M:%S')
     tot_duration = (end_t-init_t)
+
+
 
     #decide the size of time slices
     # size_slice= tot_duration/12
@@ -46,6 +49,7 @@ def org_data_in_timeIntervals(skeleton_data, timeInterval_slice):
     time_slices_append = time_slices.append
 
     c = (end_t-my_time_slice)
+    print init_t,end_t
     #get data in every timeslices
     while init_t < (end_t-my_time_slice):
         list_time_interval = []
@@ -53,10 +57,10 @@ def org_data_in_timeIntervals(skeleton_data, timeInterval_slice):
 
         for t in xrange(len(content_time)):
 
-            if datetime.strptime(content_time[t],'%H:%M:%S')>= init_t and datetime.strptime(content_time[t],'%H:%M:%S') < init_t + my_time_slice:
+            if datetime.strptime(content_time[t],'%Y-%m-%d %H:%M:%S')>= init_t and datetime.strptime(content_time[t], '%Y-%m-%d %H:%M:%S') < init_t + my_time_slice:
                 list_time_interval_append(skeleton_data[t])
 
-            if datetime.strptime(content_time[t],'%H:%M:%S') > init_t + my_time_slice:
+            if datetime.strptime(content_time[t],'%Y-%m-%d %H:%M:%S') > init_t + my_time_slice:
                 break
         #print len(list_time_interval)
 
@@ -201,8 +205,7 @@ def histograms_of_oriented_trajectories_realtime(list_poly,time_slice):
                         tracklet_in_cube_append_f([x_filtered[ci],y_filtered[ci]])
 
 
-            #print 'size 3d patches in the scene ',len(tracklet_in_cube_c),len(tracklet_in_cube_middle),len(tracklet_in_cube_f)
-
+            print 'size 3d patches in the scene ',len(tracklet_in_cube_c),len(tracklet_in_cube_middle),len(tracklet_in_cube_f)
             
             for three_d_poly in [tracklet_in_cube_c, tracklet_in_cube_middle, tracklet_in_cube_f]:
                 if len(three_d_poly)>0:
@@ -221,8 +224,13 @@ def histograms_of_oriented_trajectories_realtime(list_poly,time_slice):
                 if len(hot_matrix)>0: hot_matrix = np.hstack((hot_matrix,hot_single_poly))
                 else: hot_matrix = hot_single_poly
 
-        ## normalize the final matrix
-        normalized_finalMatrix = np.array(normalize(np.array(hot_matrix),norm='l2'))
+        if np.sum(hot_matrix) > 0.0:
+            print np.sum(hot_matrix)
+            ## normalize the final matrix
+            normalized_finalMatrix = np.array(normalize(np.array(hot_matrix),norm='l2'))
+        else:
+            print 'empty feature variable'
+            normalized_finalMatrix = np.zeros((hot_matrix.shape))
 
         print 'HOT final matrix size: ', normalized_finalMatrix.shape
         
@@ -238,14 +246,15 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
     hot_all_data_matrix = []
     hot_all_data_matrix_append = hot_all_data_matrix.append
 
-    
+
     for i in xrange(0,len(time_slices)):
+
         ##Checking the start time of every time slice
         if(len(time_slices[i])<1):
+            print time_slices[i]
             print 'no data in this time slice'
             continue
-            
-        #print np.array(time_slices[i]).shape
+
 
         #get x,y,z of every traj point after smoothing process
         x_filtered,y_filtered,zs = get_coordinate_points(time_slices[i], joint_id= 3)
@@ -254,7 +263,7 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
         #initialize histogram of oriented tracklets
         hot_matrix = []
 
-        
+        print len(list_poly)
         for p in xrange(0,len(list_poly)):
             tracklet_in_cube_f = []
             tracklet_in_cube_c = []
@@ -282,7 +291,7 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
                         tracklet_in_cube_append_f([x_filtered[ci],y_filtered[ci]])
 
 
-            #print len(tracklet_in_cube_c),len(tracklet_in_cube_middle),len(tracklet_in_cube_f)
+            print len(tracklet_in_cube_c),len(tracklet_in_cube_middle),len(tracklet_in_cube_f)
 
             
             for three_d_poly in [tracklet_in_cube_c, tracklet_in_cube_middle, tracklet_in_cube_f]:
@@ -307,9 +316,13 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
 
         hot_all_data_matrix_append(hot_matrix)
 
-
-    ## normalize the final matrix
-    normalized_finalMatrix = np.array(normalize(np.array(hot_all_data_matrix),norm='l2'))
+    if np.sum(hot_all_data_matrix) > 0.0:
+        print np.sum(hot_all_data_matrix)
+        ## normalize the final matrix
+        normalized_finalMatrix = np.array(normalize(np.array(hot_all_data_matrix), norm='l2'))
+    else:
+        print 'empty feature variable'
+        normalized_finalMatrix = np.zeros((np.array(hot_all_data_matrix).shape))
 
     ##add extra bin containing time
 
@@ -447,7 +460,7 @@ def feature_extraction_video_traj(skeleton_data, draw_joints_in_scene, realtime)
         minutes = 0
         seconds = 2
         skeleton_data_in_time_slices = org_data_in_timeIntervals(skeleton_data, [hours,minutes,seconds])
-
+        print len(skeleton_data),len(list_poly)
         HOT_data = histograms_of_oriented_trajectories(list_poly, skeleton_data_in_time_slices)
 
 

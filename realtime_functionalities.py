@@ -4,6 +4,7 @@ from collections import Counter
 import numpy as np
 import time
 #import winsound
+import os
 
 import classifiers
 import database
@@ -13,9 +14,9 @@ import get_token
 
 
 
-
-cluster_model = database.load_matrix_pickle('C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/cl_30_kmeans_model_2secWindow_newVersion.txt')
-key_labelss = database.load_matrix_pickle('C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/cluster_30_kmeans_word_newVersion.txt')
+abs_folder_path = os.path.abspath(__file__)[:-27]
+cluster_model = database.load_matrix_pickle(abs_folder_path + 'BOW_trained_data/BOW/cl_30_kmeans_model_2secWindow_newVersion.txt')
+key_labelss = database.load_matrix_pickle(abs_folder_path + 'BOW_trained_data/BOW/cluster_30_kmeans_word_newVersion.txt')
 key_labels = map(lambda x: x[0], key_labelss)
 def disorientation(skeletons, timeStart,timeEnd, requestInterval, hist):
 
@@ -124,7 +125,7 @@ def fall_down_manager(skeletons, jointsOfInterest, requestInterval, timeStart, f
         data[i] = np.array(data[i])
 
     # if there are enough data (>20 fps)
-    if len(data) > 0 and data[0].shape[0] >= requestInterval * 20:
+    if len(data) > 0 and data[0].shape[0] >= requestInterval * 13:#len(data) > 0 and data[0].shape[0] >= requestInterval * 20:
 
         for k in range(len(data)):
 
@@ -160,10 +161,10 @@ def fall_down_manager(skeletons, jointsOfInterest, requestInterval, timeStart, f
 
             # if a band is present
             if hold_max > -1:
-
                 if np.max(prediction[0, :, 1]) > 0.98 and \
-                        np.mean(prediction[0, :, 1]) > 0.25 and \
-                        hold_max > 2.3:
+                                np.mean(prediction[0, :, 1]) > 0.25 and \
+                                hold_max > 2.3:
+
                     # print '{0} | skeleton {1} | Fall: {2:02.1f} % | Fall Mean: {3:02.1f} %' \
                     # ' | Acc: {4} | Time: {5}ms'.\
                     # format(timeStart, np.nonzero(idSkeleton)[0][k], 100 * np.max(prediction[0, :, 1]),
@@ -184,7 +185,8 @@ def fall_down_manager(skeletons, jointsOfInterest, requestInterval, timeStart, f
                                     'Sensor': 'Kinect',
                                     'SensorID': key,
                                     'BodyID': int(np.nonzero(idSkeleton)[0][k])})
-
+                else:
+                    print '---no fall down detected---'
 
 
             else:  # only kinect
@@ -403,10 +405,11 @@ def load_models(jointsOfInterest, fps):
                                                   lrnRate=10 ** -4, pDrop=0.2)
 
     # model_fall_down = load_model_weights(model_fall_down, 'C:/Users/Dell/Desktop/ICT4LIFE_ABD_indoor/BOW_trained_data/fall_sk_0.20.hdf5')
-    model_fall_down = kinect_features.load_model_weights(model_fall_down,
-                                                     'C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/fall_sk_10.50.hdf5')
 
-    file_calibaration = 'C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/APM_KINECT_Calibration_12_9_17.txt'
+    model_fall_down = kinect_features.load_model_weights(model_fall_down,
+                                                     abs_folder_path+'BOW_trained_data/fall_sk_10.50.hdf5')
+
+    file_calibaration = abs_folder_path+'BOW_trained_data/APM_KINECT_Calibration_12_9_17.txt'
 
     RT = np.genfromtxt(file_calibaration, delimiter=',')
     R = RT[0:3, :]
@@ -485,8 +488,8 @@ def main_realtime_functionalities():
 
         ## initialize bow hist for disorientation
         hist = np.zeros((1, len(key_labels)))
-        bow_data = database.load_matrix_pickle('C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/BOW_30_kmeans_16subject_2sec.txt')
-        labels_bow_data = database.load_matrix_pickle('C:/Users/Dell/Desktop/ICT4LIFE_ABD_PILOTS/ICT4LIFE_ABD_indoor/BOW_trained_data/BOW/BOW_30_kmeans_labels_16subject_2sec.txt')
+        bow_data = database.load_matrix_pickle(abs_folder_path+'BOW_trained_data/BOW/BOW_30_kmeans_16subject_2sec.txt')
+        labels_bow_data = database.load_matrix_pickle(abs_folder_path+'BOW_trained_data/BOW/BOW_30_kmeans_labels_16subject_2sec.txt')
         ##labels meaning: 0 - normal activity , 1- normal-activity, 2-confusion, 3-repetitive, 4-questionnaire at table, 5- making tea
         classifiers.logistic_regression_train(bow_data, np.ravel(labels_bow_data), save_model=0)
 
@@ -559,15 +562,15 @@ def main_realtime_functionalities():
                             hasSkeleton[j] == False
 
                         if d[i][j] != []:
-                        	skeletons_4_falldown[idSkeleton[j] - 1].append([kinect_features.unix_time_ms(d[i][j][1]), np.array(d[i][j][6])])
-                        	coords.append(100 * np.array(d[i][j][6])[:, :-1])
-                        	confidence.append(np.array(d[i][j][6])[:, -1])
-                        	skeletons_4_lb[idSkeleton[j] - 1].append([d[i][j][2], d[i][j][3]])
-                        	skeletoncoords.append((np.matmul(R_lb.T, coords[-1].T) + T_lb.T).T)
-                        	skeletons_4_disorientation.append(np.array(d[i][j][7]))
-                            
+                            skeletons_4_falldown[idSkeleton[j] - 1].append([kinect_features.unix_time_ms(d[i][j][1]), np.array(d[i][j][6])])
+                            coords.append(100 * np.array(d[i][j][6])[:, :-1])
+                            confidence.append(np.array(d[i][j][6])[:, -1])
+                            skeletons_4_lb[idSkeleton[j] - 1].append([d[i][j][2], d[i][j][3]])
+                            skeletoncoords.append((np.matmul(R_lb.T, coords[-1].T) + T_lb.T).T)
+                            skeletons_4_disorientation.append(np.array(d[i][j][7]))
 
-                        	stand[idSkeleton[j] - 1].append(standing(np.array(skeletoncoords[-1]),
+
+                            stand[idSkeleton[j] - 1].append(standing(np.array(skeletoncoords[-1]),
                                                                                  np.array(confidence[-1]), 0))
 
                 results = fall_down_manager(skeletons_4_falldown, jointsOfInterest, requestInterval, timeStart, fps,
@@ -608,8 +611,8 @@ def main_realtime_functionalities():
             t2 = datetime.now()
             if (t2 - t1).seconds < requestInterval:
                 time.sleep(requestInterval - (t2 - t1).seconds)
-            # else:
-            # print 'Delayed !'
+            else:
+                print 'Delayed !'
 
 
 

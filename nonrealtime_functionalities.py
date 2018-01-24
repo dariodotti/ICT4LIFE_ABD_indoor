@@ -230,9 +230,9 @@ def get_freezing_festination(db):
 def main_nonrealtime_functionalities():
 
     # Perform reidentification
-    #json_data = {"init_hour": "14:23:00", "init_date": "11-01-2018", "fin_hour": "14:27:00", "fin_date": "11-01-2018"}
+    #json_data = {"init_hour": "15:30:00", "init_date": "18-01-2018", "fin_hour": "16:00:00", "fin_date": "18-01-2018"}
     #r = requests.post("http://"+str(socket.gethostbyname(socket.gethostname()))+":8000/get_all_data/", json=json_data)
-    #r = requests.post("http://192.168.1.188:8000/get_all_data/", json=json_data)
+    #r = requests.post("http://127.0.0.1:8000/get_all_data/", json=json_data)
 
     ##INPUT: path of configuration file for available sensor
     parser = argparse.ArgumentParser(description='path to conf file')
@@ -249,7 +249,7 @@ def main_nonrealtime_functionalities():
     db = database.connect_db('local')
     
     ## time interval to analyze
-    time_interval = ['2018-01-11 14:23:00','2018-01-11 14:27:00']
+    time_interval = ['2018-01-18 15:37:00','2018-01-18 15:40:00']
 
 
     kinect_motion_amount = daily_motion_training(db,avaliable_sensor,time_interval)
@@ -284,16 +284,18 @@ def main_nonrealtime_functionalities():
 
 
     ##if we want the total number of visit we take it from the day and night motion
-    as_motion_for_json = {key: [] for key in day_motion_as_activation.keys()}
-    for k in day_motion_as_activation.keys():
-        as_motion_for_json[k].append({'beginning': day_motion_as_activation[k][0] + night_motion_as_activation[k][0],\
-         'duration':day_motion_as_activation[k][1] + night_motion_as_activation[k][1] })
-
+    # as_motion_for_json = {key: [] for key in day_motion_as_activation.keys()}
+    # for k in day_motion_as_activation.keys():
+    #     for aa in day_motion_as_activation[k]:
+    #         print aa
+    #     as_motion_for_json[k].append({'beginning': day_motion_as_activation[k][0] + night_motion_as_activation[k][0],\
+    #      'duration':day_motion_as_activation[k][1] + night_motion_as_activation[k][1] })
+    #     print as_motion_for_json[k]
 
     ###### summarization ####
     ##at the end of the day summarize and write all the results in a file that will be uploaded into amazon web services
     # Matching person band with uuid and send summarization for one patient
-    database.write_summarization_nonrealtime_f_json(kinect_motion_amount, as_motion_for_json, as_motion_for_json,\
+    database.write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_activation, day_motion_as_activation,\
         freezing_analysis,festination_analysis, loss_of_balance_analisys, fall_down_analysis, nr_visit, confusion_analysis,lh_number,lhc_number  )
     
 

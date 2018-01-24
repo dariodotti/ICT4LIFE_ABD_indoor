@@ -33,7 +33,8 @@ def as_motion(as_data):
     #check reliability
     #vis.plot_ambient_sensor_ONOFF_pair_over_time(sensor_ID)
 
-    sensor_activation = {}
+    #sensor_activation = {}
+    sensor_activation = {key: [] for key in sensors_ID.keys()}
     for k in sensors_ID.keys():
         ##general time stamp list
         ##for every sensor create two lists: off and on and compute the duration of the stay in a certain room
@@ -48,33 +49,29 @@ def as_motion(as_data):
                 on_list.append(line[2].encode('utf8').replace('-',':'))
 
         ##compute durationn of stay: NOW i assume the first event is open the door (TODO: think of robust solution if people do not close the doors)
-        durations = []
-        new_off_list = []
+        #durations = []
+        #new_off_list = []
+        on_list.append(3)
+        on_list.append(9)
+        on_list.append(90)
+        on_list.append(90)
+
+
         for i in range(0,len(on_list)-1,2):
 
-            end_t = datetime.strptime(off_list[i+1], '%H:%M:%S')
-            start_t = datetime.strptime(off_list[i], '%H:%M:%S')
-            durations.append(str(end_t-start_t))
-            new_off_list.append(off_list[i])
+            durations = {'duration':'', 'beginning':''}
+            #new_off_dict = {'beginning':''}
 
-        sensor_activation[k] = [new_off_list, durations]
+            #end_t = datetime.strptime(off_list[i+1], '%H:%M:%S')
+            #start_t = datetime.strptime(off_list[i], '%H:%M:%S')
+            end_t = datetime.strptime('15:37:00', '%H:%M:%S')
+            start_t= datetime.strptime('15:36:00', '%H:%M:%S')
+            durations['duration']= str(end_t-start_t)
+            durations['beginning']= '2018-01-18 15:36:00'#off_list[i]
+            #durations.append(str(end_t-start_t))
+            #new_off_list.append(off_list[i])
 
-    ## create a dictionary of sensor and number of timestamp activations
-    # sensor_activation = {}
-    # for k in sensors_ID.keys():
-    #     timeStamps_key = []
-    #     for value in sensors_ID[k]:
-    #         timeStamps_key.append(value.split(' ')[2].encode('utf8').replace('-',':'))
-    #
-    #     durations = []
-    #     for t in range(0,len(timeStamps_key)-1,2):
-    #         end_t = datetime.strptime(timeStamps_key[t+1], '%H:%M:%S')
-    #         start_t = datetime.strptime(timeStamps_key[t], '%H:%M:%S')
-    #         durations.append(str(end_t-start_t))
-    #
-    #     sensor_activation[k] = [timeStamps_key,durations]
-    #
-    # print 'ambient sensor activation', sensor_activation
+            sensor_activation[k].append(durations)
 
     return sensor_activation
 

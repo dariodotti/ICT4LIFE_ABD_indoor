@@ -136,7 +136,7 @@ def pie_plot_motion_day(data):
 
         ax.pie(pie_slice_size,labels=labels, colors=colors,autopct='%1.1f%%', shadow=True)
         plt.axis('equal')
-        plt.show()
+        #plt.show()
 
     return motion
 
