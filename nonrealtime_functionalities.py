@@ -1,7 +1,7 @@
 import numpy as np
 import argparse
 import time
-from datetime import datetime
+from datetime import datetime,timedelta
 
 import database
 import kinect_features
@@ -16,8 +16,6 @@ import socket
 
 
 def daily_motion_training(db,avaliable_sensor, time_interval):
-
-    #time_interval = ['2018-01-09 08:43:13','2018-01-09 08:44:13']
 
     if avaliable_sensor['kinect']:
         print 'kinect for daily motion'
@@ -45,7 +43,7 @@ def daily_motion_training(db,avaliable_sensor, time_interval):
         ##visulaization daily motion
         #visualization.bar_plot_occupancy_selectedAreas_over_time(global_traj_features[0])
         #visualization.bar_plot_motion_over_time(global_traj_features[1])
-        kinect_motion_amount = visualization.pie_plot_motion_day(global_traj_features[1])
+        kinect_motion_amount = visualization.pie_plot_motion_day(global_traj_features[1],plot=0)
 
         # normalize motion
         total_motion = np.sum(kinect_motion_amount[0])
@@ -53,7 +51,7 @@ def daily_motion_training(db,avaliable_sensor, time_interval):
 
         ##make it dictionary
         kinect_motion_amount = {'stationary': kinect_motion_amount[0][0],'slow_mov': kinect_motion_amount[0][1],'fast_mov': kinect_motion_amount[0][2]}
-        print kinect_motion_amount 
+        #print kinect_motion_amount
 
     else:
         print '--------------- no data in the time interval ---------------------'
@@ -71,7 +69,7 @@ def daily_motion_training(db,avaliable_sensor, time_interval):
 
     return kinect_motion_amount
 
-
+##TODO UPDate this old method
 def daily_motion_test(db,avaliable_sensor):
 
     time_interval = ['2016-12-07 13:00:00', '2016-12-07 14:00:00']
@@ -236,21 +234,22 @@ def main_nonrealtime_functionalities():
 
     ##INPUT: path of configuration file for available sensor
     parser = argparse.ArgumentParser(description='path to conf file')
-    parser.add_argument('path_confFile')
+    parser.add_argument('arguments',nargs=2)
     args = parser.parse_args()
 
     ##initialize and parse config file
-    conf_file.parse_conf_file(args.path_confFile)
+    conf_file.parse_conf_file(args.arguments[0])
+    day_to_analyze = args.arguments[1]
 
     avaliable_sensor = conf_file.get_available_sensors()
-
 
     #connect to the db
     db = database.connect_db('local')
     
     ## time interval to analyze
-    time_interval = ['2018-01-18 15:37:00','2018-01-18 15:40:00']
-
+    end_period = datetime.strptime(day_to_analyze, '%Y-%m-%d %H:%M:%S')
+    begin_period = end_period - timedelta(days=1)
+    time_interval = [begin_period,end_period]
 
     kinect_motion_amount = daily_motion_training(db,avaliable_sensor,time_interval)
 
