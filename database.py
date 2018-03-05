@@ -146,41 +146,6 @@ def delete_sensor_documents(db, time_interval):
     return result
 
 
-# def multithread_joints_from_db(n_frame,f):
-#
-#     # while in_queue.get()[1] != 'STOP':
-#     #     print in_queue.get()[1]
-#     #
-#     #     f = in_queue.get()[0]
-#     #     n_frame = in_queue.get()[1]
-#     print n_frame
-#     shared_list = []
-#     # takes only data within the selected time interval
-#     for n_id, body_frame in enumerate(f['BodyFrame']):
-#
-#         if body_frame['isTracked']:
-#
-#             frame_body_joints = np.zeros((len(body_frame['skeleton']['rawGray']) + 1, 3), dtype='S30')
-#
-#             # frameID
-#             frame_body_joints[0, 0] = n_frame
-#             # time
-#             frame_body_joints[0, 1] = f['_id']
-#             # trackID
-#             frame_body_joints[0, 2] = n_id
-#
-#             # joints
-#             i = 1
-#             for j in body_frame['skeleton']['rawGray']:
-#                 frame_body_joints[i, 0] = j['x']
-#                 frame_body_joints[i, 1] = j['y']
-#                 frame_body_joints[i, 2] = j['z']
-#                 i += 1
-#             shared_list.append(frame_body_joints)
-#
-#     return shared_list
-
-
 def read_kinect_data_from_db(collection, time_interval, session, skeletonType, exclude_columns=None):
 
     """
@@ -293,7 +258,7 @@ def read_kinect_data_from_db(collection, time_interval, session, skeletonType, e
     return all_data
 
 
-def read_kinect_joints_from_db(kinect_collection,time_interval,multithread):
+def read_kinect_joints_from_db(kinect_collection,time_interval):
 
     global begin_period,end_period
     begin_period = datetime.strptime(time_interval[0], '%Y-%m-%d %H:%M:%S')
@@ -307,74 +272,46 @@ def read_kinect_joints_from_db(kinect_collection,time_interval,multithread):
 
 
     joint_points = []
+   
+    for n_frame,f in enumerate(frame_with_joints):
 
-    if multithread:
+        # takes only data within the selected time interval
+        if begin_period <= f['_id'] <= end_period:
 
-        ##TODO create multi threading process
-        print 'still no multithreading'
+            for n_id,body_frame in enumerate(f['BodyFrame']):
 
-        #manager = multiprocessing.Manager()
-        ##list shared by the workers to save te data
-        # worker1 = manager.Queue()
-        #
-        # joint_points = manager.list()
-        #
-        # pool = multiprocessing.Pool(processes=4)
-        #
-        # pool.apply_async(multithread_joints_from_db,args=(worker1,joint_points))
-        #
-        #
-        # for n_frame,f in enumerate(frame_with_joints):
-        #
-        #     if f['_id'] > end_period:
-        #         worker1.put(['STOP','STOP'])
-        #         break
-        #
-        #     elif begin_period <= f['_id'] <= end_period:
-        #         worker1.put([f,n_frame])
-        #
-        # print 'pool close'
-        # worker1.put(['STOP', 'STOP'])
-        # pool.close()
-        # pool.join()
+                if body_frame['isTracked']:
 
-    else:
-        for n_frame,f in enumerate(frame_with_joints):
+                    frame_body_joints = np.zeros((len(body_frame['skeleton']['rawGray'])+1,3),dtype='S30')
 
-            # takes only data within the selected time interval
-            if begin_period <= f['_id'] <= end_period:
-
-                for n_id,body_frame in enumerate(f['BodyFrame']):
-
-                    if body_frame['isTracked']:
-
-                        frame_body_joints = np.zeros((len(body_frame['skeleton']['rawGray'])+1,3),dtype='S30')
-
-                        #frameID
-                        frame_body_joints[0,0] = n_frame
-                        #time
-                        frame_body_joints[0,1] = f['_id']
-                        #trackID
+                    #frameID
+                    frame_body_joints[0,0] = n_frame
+                    #time
+                    frame_body_joints[0,1] = f['_id']
+                    #trackID is read from re-id algorithm if it had been applied, otherwise we read kinect id
+                    try:
+                        frame_body_joints[0,2] = body_frame['re_id']
+                    except Exception as e:      
                         frame_body_joints[0,2] = n_id
 
-                        #joints
-                        i = 1
-                        for j in body_frame['skeleton']['rawGray']:
-                            frame_body_joints[i,0] = j['x']
-                            frame_body_joints[i,1] = j['y']
-                            #frame_body_joints[i,2] = j['raw']['z']
-                            i+=1
-                        i = 1
-                        for j in body_frame['skeleton']['raw']:
-                            frame_body_joints[i,2] = j['z']
-                            i+=1
+                    #joints
+                    i = 1
+                    for j in body_frame['skeleton']['rawGray']:
+                        frame_body_joints[i,0] = j['x']
+                        frame_body_joints[i,1] = j['y']
+                        #frame_body_joints[i,2] = j['raw']['z']
+                        i+=1
+                    i = 1
+                    for j in body_frame['skeleton']['raw']:
+                        frame_body_joints[i,2] = j['z']
+                        i+=1
 
-                        joint_points.append(frame_body_joints)
+                    joint_points.append(frame_body_joints)
 
-            #elif f['_id'] > end_period:
-                #break
-            elif f['_id'] < begin_period:
-                break
+        #elif f['_id'] > end_period:
+            #break
+        elif f['_id'] < begin_period:
+            break
 
 
     joint_points = joint_points[::-1]
@@ -980,34 +917,36 @@ def summarize_events_certh(event_name, path):
     return '{0}: {{\'number\': {1}, \'beginning\': {2}, \'duration\': {3}}}'.format(\
                                                         event_name, len(events), times, durations)
 
-personMSBand = "MSFT Band UPM f6:65"
+#personMSBand = "MSFT Band UPM f6:65"
 def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_activation, night_motion_as_activation,freezing_analysis,festination_analysis,\
- loss_of_balance_analisys, fall_down_analysis, nr_visit, confusion_analysis,lh_number,lhc_number  ):
+ loss_of_balance_analisys, fall_down_analysis, nr_visit, confusion_analysis,lh_number,lhc_number):
 
-    path_to_lambda = "C:/libs3/"
+    path_to_lambda = "C:\\libs3\\"
     client = Connection('localhost', 27017)
     dbIDs = client['local']['BandPersonIDs']
     uuids = dbIDs.find()
-    uuids_list=[]
-    for uuid_person in ['d20d7fc0-c0eb-4d49-8551-745bc149594e',"c2c3ed00-c5fd-433f-9db7-4bf6dce11488"]:#uuids:
-        if 1:#uuid["SensorID"] == personMSBand:
-            #uuid_person = uuid["PersonID"]
-            final_sumarization = {'patientID':uuid_person,"date": time.strftime("%Y-%m-%d"),"daily_motion": kinect_motion_amount, "as_day_motion": day_motion_as_activation,\
-                "as_night_motion": night_motion_as_activation, "freezing": freezing_analysis, "festination": festination_analysis,\
-                "loss_of_balance": loss_of_balance_analisys, "fall_down": fall_down_analysis, "visit_bathroom": nr_visit, \
-                "confusion_behaviour_detection": confusion_analysis, "leave_the_house": lh_number, "leave_house_confused": lhc_number }
-            #uuids_list.append(final_sumarization)
-    
-            date_in_title = time.strftime("%Y-%m-%d").split('-')
-            filename_json = path_to_lambda+uuid_person + '_' + date_in_title[0]+date_in_title[1]+date_in_title[2]+ '.json'
-            with open(filename_json, 'w') as outfile:
-                json.dump(final_sumarization, outfile)
+    for uuid_person in uuids:
+        final_sumarization = {'patientID': uuid_person["PersonID"],"date": time.strftime("%Y-%m-%d"),"daily_motion": kinect_motion_amount[uuid_person["SensorID"]], "as_day_motion": day_motion_as_activation[uuid_person["SensorID"]], "as_night_motion": night_motion_as_activation[uuid_person["SensorID"]], "freezing": freezing_analysis[uuid_person["SensorID"]], "festination": festination_analysis[uuid_person["SensorID"]], "loss_of_balance": loss_of_balance_analisys[uuid_person["SensorID"]], "fall_down": fall_down_analysis[uuid_person["SensorID"]], "visit_bathroom": nr_visit[uuid_person["SensorID"]], "confusion_behaviour_detection": confusion_analysis[uuid_person["SensorID"]], "leave_the_house": lh_number[uuid_person["SensorID"]], "leave_house_confused": lhc_number[uuid_person["SensorID"]]}
+        
+        date_in_title = time.strftime("%Y-%m-%d").split('-')
+        filename_json = path_to_lambda + uuid_person["PersonID"] + '_' + date_in_title[0]+date_in_title[1]+date_in_title[2]+ '.json'
+        with open(filename_json, 'w') as outfile:
+            json.dump(final_sumarization, outfile)
 
-
-            fileManager = S3FileManager.S3FileManger('hetra/out', '')
-            fileManager.upload_file(filename_json, \
-                                    uuid_person + '_' + date_in_title[0]+date_in_title[1]+date_in_title[2]+ '.json')
-            print 'json summarization uploaded to the amazon web server!'
+        fileManager = S3FileManager.S3FileManger('hetra/out', '')
+        fileManager.upload_file(filename_json, uuid_person["PersonID"] + '_' + date_in_title[0]+date_in_title[1]+date_in_title[2]+ '.json')
+        print 'json summarization uploaded to the amazon web server!'
     
+
+def get_bands_ID(db):
+    bands_collection = db.BandPersonIDs.find()
+
+    band_ids= []
+    for b in bands_collection:
+        print 'band in use: ', b['SensorID'],' uuid: ', b['PersonID']
+        band_ids.append([b['SensorID'],b['PersonID']])
+
+    return band_ids
+
 
     

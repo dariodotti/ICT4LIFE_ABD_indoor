@@ -12,6 +12,8 @@ import img_processing_kinect as my_img_proc
 import database
 import visualization as vis
 import classifiers
+import get_token
+
 
 kinect_max_distance= 6.5
 kinect_min_distance=0.5
@@ -20,9 +22,9 @@ cube_size = (kinect_max_distance-kinect_min_distance)/3
 
 def org_data_in_timeIntervals(skeleton_data, timeInterval_slice):
     #get all time data from the list dropping the decimal
-    #content_time = map(lambda line: line[0,1].split(' ')[1].split('.')[0],skeleton_data)
-    content_time = map(lambda line: line[0, 1][:-7], skeleton_data)
+    content_time = map(lambda line: line[0,1].split('.')[0],skeleton_data) #
     
+
     #date time library
 
     init_t = datetime.strptime( content_time[0],'%Y-%m-%d %H:%M:%S') #+ ' ' + timeInterval_slice[3]
@@ -42,14 +44,14 @@ def org_data_in_timeIntervals(skeleton_data, timeInterval_slice):
 
     my_time_slice = timedelta(hours=hours,minutes=minutes,seconds=seconds)
 
-    print 'time slice selected: ' + str(my_time_slice)
+    #print 'time slice selected: ' + str(my_time_slice)
 
     #initialize list
     time_slices = []
     time_slices_append = time_slices.append
 
     c = (end_t-my_time_slice)
-    print init_t,end_t
+    #print init_t,end_t
     #get data in every timeslices
     while init_t < (end_t-my_time_slice):
         list_time_interval = []
@@ -156,7 +158,7 @@ def occupancy_histograms_in_time_interval(my_room, list_poly, time_slices):
 
     ## normalize the final matrix
     normalized_finalMatrix = np.array(normalize(np.array(my_data_temp),norm='l2'))
-    print 'OC final matrix size:' , normalized_finalMatrix.shape
+    #print 'OC final matrix size:' , normalized_finalMatrix.shape
 
     return normalized_finalMatrix
 
@@ -205,7 +207,7 @@ def histograms_of_oriented_trajectories_realtime(list_poly,time_slice):
                         tracklet_in_cube_append_f([x_filtered[ci],y_filtered[ci]])
 
 
-            print 'size 3d patches in the scene ',len(tracklet_in_cube_c),len(tracklet_in_cube_middle),len(tracklet_in_cube_f)
+            #print 'size 3d patches in the scene ',len(tracklet_in_cube_c),len(tracklet_in_cube_middle),len(tracklet_in_cube_f)
             
             for three_d_poly in [tracklet_in_cube_c, tracklet_in_cube_middle, tracklet_in_cube_f]:
                 if len(three_d_poly)>0:
@@ -225,14 +227,14 @@ def histograms_of_oriented_trajectories_realtime(list_poly,time_slice):
                 else: hot_matrix = hot_single_poly
 
         if np.sum(hot_matrix) > 0.0:
-            print np.sum(hot_matrix)
+            #print np.sum(hot_matrix)
             ## normalize the final matrix
             normalized_finalMatrix = np.array(normalize(np.array(hot_matrix),norm='l2'))
         else:
             print 'empty feature variable'
             normalized_finalMatrix = np.zeros((hot_matrix.shape))
 
-        print 'HOT final matrix size: ', normalized_finalMatrix.shape
+        #print 'HOT final matrix size: ', normalized_finalMatrix.shape
         
 
     return normalized_finalMatrix
@@ -251,8 +253,8 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
 
         ##Checking the start time of every time slice
         if(len(time_slices[i])<1):
-            print time_slices[i]
-            print 'no data in this time slice'
+            #print time_slices[i]
+            #print 'no data in this time slice'
             continue
 
 
@@ -263,7 +265,7 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
         #initialize histogram of oriented tracklets
         hot_matrix = []
 
-        print len(list_poly)
+        #print len(list_poly)
         for p in xrange(0,len(list_poly)):
             tracklet_in_cube_f = []
             tracklet_in_cube_c = []
@@ -291,7 +293,7 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
                         tracklet_in_cube_append_f([x_filtered[ci],y_filtered[ci]])
 
 
-            print len(tracklet_in_cube_c),len(tracklet_in_cube_middle),len(tracklet_in_cube_f)
+            #print len(tracklet_in_cube_c),len(tracklet_in_cube_middle),len(tracklet_in_cube_f)
 
             
             for three_d_poly in [tracklet_in_cube_c, tracklet_in_cube_middle, tracklet_in_cube_f]:
@@ -317,17 +319,17 @@ def histograms_of_oriented_trajectories(list_poly,time_slices):
         hot_all_data_matrix_append(hot_matrix)
 
     if np.sum(hot_all_data_matrix) > 0.0:
-        print np.sum(hot_all_data_matrix)
+        #print np.sum(hot_all_data_matrix)
         ## normalize the final matrix
         normalized_finalMatrix = np.array(normalize(np.array(hot_all_data_matrix), norm='l2'))
     else:
-        print 'empty feature variable'
+        #print 'empty feature variable'
         normalized_finalMatrix = np.zeros((np.array(hot_all_data_matrix).shape))
 
     ##add extra bin containing time
 
 
-    print 'HOT final matrix size: ', normalized_finalMatrix.shape
+    #print 'HOT final matrix size: ', normalized_finalMatrix.shape
 
     return normalized_finalMatrix
 
@@ -417,7 +419,7 @@ def measure_joints_accuracy(skeleton_data):
 
     frames_where_joint_displacement_over_threshold = []
     map(lambda (i,d): frames_where_joint_displacement_over_threshold.append(i) if d>threshold else False , enumerate(diff))
-    print len(frames_where_joint_displacement_over_threshold)
+    #print len(frames_where_joint_displacement_over_threshold)
 
 
     ##display mean distance of every joints between frames
@@ -429,7 +431,7 @@ def measure_joints_accuracy(skeleton_data):
     return frames_where_joint_displacement_over_threshold
 
 
-def feature_extraction_video_traj(skeleton_data, draw_joints_in_scene, realtime):
+def feature_extraction_video_traj(skeleton_data, bands_ids, draw_joints_in_scene, realtime):
 
 
     ##divide image into patches(polygons) and get the positions of each one
@@ -455,16 +457,30 @@ def feature_extraction_video_traj(skeleton_data, draw_joints_in_scene, realtime)
         ## create Histograms of Oriented Tracks directly on skeleton data because only 1 sec is considered
         HOT_data = histograms_of_oriented_trajectories_realtime(list_poly, skeleton_data)
     else:
-        ## split considered period is small time intervals
-        hours = 0
-        minutes = 0
-        seconds = 2
-        skeleton_data_in_time_slices = org_data_in_timeIntervals(skeleton_data, [hours,minutes,seconds])
-        print len(skeleton_data),len(list_poly)
-        HOT_data = histograms_of_oriented_trajectories(list_poly, skeleton_data_in_time_slices)
+        ## NON real time  ##
+        ## divide the skeleton according to re-id
+        ids_data =  np.unique(np.array(skeleton_data)[:,0,2])
 
+        HOT_data = []
+        for b in bands_ids:
+            band_id = b[0]
+            uuid = b[1]
 
-        print HOT_data
+            idx_current_sk = np.where(np.array(skeleton_data)[:,0,2] == band_id)[0]
+            skeleton_data_current_sk = np.array(skeleton_data)[idx_current_sk]
+
+            if skeleton_data_current_sk.shape[0]>0:
+                ## split considered period is small time intervals
+                hours = 0
+                minutes = 0
+                seconds = 2
+
+                skeleton_data_in_time_slices = org_data_in_timeIntervals(skeleton_data_current_sk, [hours,minutes,seconds])
+                #print len(skeleton_data),len(list_poly)
+                HOT_data.append(histograms_of_oriented_trajectories(list_poly, skeleton_data_in_time_slices))
+            else: 
+                HOT_data.append([])
+
     
     ## count traj points in each region and create hist
     #occupancy_histograms = occupancy_histograms_in_time_interval(my_room, list_poly, skeleton_data_in_time_slices)

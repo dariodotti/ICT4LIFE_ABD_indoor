@@ -97,7 +97,7 @@ def bar_plot_motion_over_time(data):
     plt.show()
 
 
-def pie_plot_motion_day(data):
+def pie_plot_motion_day(data,plot=0):
     #last_col = np.array(data).shape[1]-1
     #hs = data[:,last_col:]
     #data = data[:,:last_col]
@@ -124,19 +124,19 @@ def pie_plot_motion_day(data):
     if motion.sum(axis=1) == 0:
         print 'no motion to plot ', motion
     else:
+        if plot != 0:
+            #plot
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            labels = 'stationary', 'slight mov', 'fast mov'
+            colors = ['yellowgreen', 'gold', 'lightskyblue']
+            pie_slice_size = [float(i)/np.sum(motion[0]) for i in motion[0]]
 
-        #plot
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        labels = 'stationary', 'slight mov', 'fast mov'
-        colors = ['yellowgreen', 'gold', 'lightskyblue']
-        pie_slice_size = [float(i)/np.sum(motion[0]) for i in motion[0]]
+            print motion
 
-        print motion
-
-        ax.pie(pie_slice_size,labels=labels, colors=colors,autopct='%1.1f%%', shadow=True)
-        plt.axis('equal')
-        #plt.show()
+            ax.pie(pie_slice_size,labels=labels, colors=colors,autopct='%1.1f%%', shadow=True)
+            plt.axis('equal')
+            #plt.show()
 
     return motion
 
