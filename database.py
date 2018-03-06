@@ -33,29 +33,56 @@ def read_events(db):
     # The following assumptions are made for the captured events
     #   - each event is associated with only one sensor (e.g., LossOfBalance <=> Kinect)
     #   - each event is registered only once (2 Kinects cannot report the same LossOfBalance event)
-	#   - the events are deleted at the end of each day
+    #   - the events are deleted at the end of each day
 
     r = db.rtevents.find({}).sort('TimeStamp', 1) # 1 = ASCENDING
 
     events = dict()
+    no_reid_counter = 0
     for i, e in enumerate(r):
+
+        # search for re-id field in Kinect table:
+        if e['Sensor'] == 'Kinect':
+            timeStart = datetime.strptime(e['TimeStamp'], "%Y-%m-%d %H:%M:%S")
+            timeEnd = timeStart + timedelta(seconds=1)
+            timeStart = timeStart.strftime("%Y-%m-%d %H:%M:%S")
+            timeEnd = timeEnd.strftime("%Y-%m-%d %H:%M:%S")
+            d_all = read_kinect_data_from_db(collection=db.Kinect,
+                                             time_interval=[timeStart, timeEnd],
+                                             session='',
+                                             skeletonType=['filtered','rawGray'],
+                                             exclude_columns=['ColorImage', 'DepthImage',
+                                                              'InfraImage', 'BodyImage'])
+            reid = ''
+            if e['SensorID'] in d_all.keys():
+                d = d_all[e['SensorID']]
+                for j in range(len(d)):
+                    if d[j][e['BodyID']][2] != '':
+                        reid = d[j][e['BodyID']][2]
+                        break
+
+            e['reid'] = reid
+
+        # set SensorID as the reid field in MSBand
+        if e['Sensor'] == 'MSBand':
+            e['reid'] = e['SensorID']
 
         # split events based on event type
         if events.has_key(e['Event']) == False:
             events[e['Event']] = dict()
 
-        # further split events by sensorID
-        if events[e['Event']].has_key(e['SensorID']) == False:
-            events[e['Event']][e['SensorID']] = dict()
-
-        # further split events by BodyID
-        if events[e['Event']][e['SensorID']].has_key(e['BodyID']) == False:
-            events[e['Event']][e['SensorID']][e['BodyID']] = []
+        # further split events by re-id (events with no re-id field are discarded)
+        if events[e['Event']].has_key(e['reid']) == False and e['reid'] != '':
+            events[e['Event']][e['reid']] = []
 
         # format events as timestamp, duration, sensor
-        dt = datetime.strptime(e['TimeStamp'], "%Y-%m-%d %H:%M:%S")
-        events[e['Event']][e['SensorID']][e['BodyID']].append(
-            [dt, e['Duration'], e['Sensor']])
+        if e['reid'] != '':
+            dt = datetime.strptime(e['TimeStamp'], "%Y-%m-%d %H:%M:%S")
+            events[e['Event']][e['reid']].append([dt, e['Duration'], e['Sensor']])
+        else:
+            no_reid_counter += 1
+
+    print 'Found {0} events that cannot be matched to a person (no re-id)'.format(no_reid_counter)
 
 
     return events
@@ -78,53 +105,59 @@ def summarize_events(db):
     # The following assumptions are made for the captured events
     #   - if timestamp + duration of event(t) = timestamp of event(t+1),
     #     the 2 events are combined into 1
-    #   - the bodyID of a person stays the same (to be solved by re-id)
 
     events = read_events(db)
 
     # join subsequent events together
     for e_type in events.keys(): # for each event type
-        for sID in events[e_type].keys(): # for each sensorID
-            for bID in events[e_type][sID].keys(): # for each bodyID
-                for i in range(len(events[e_type][sID][bID]) - 1): # for each event
-                    e_t = events[e_type][sID][bID][i]
-                    e_tp1 = events[e_type][sID][bID][i + 1]
-                    if e_t[0] + timedelta(seconds=e_t[1]) == e_tp1[0]:
-                        # the 2 events can be joined into 1
-                        events[e_type][sID][bID][i + 1][0] = events[e_type][sID][bID][i][0]
-                        events[e_type][sID][bID][i + 1][1] += events[e_type][sID][bID][i][1]
-                        events[e_type][sID][bID][i] = None
+        for rID in events[e_type].keys(): # for each re-id value
+            for i in range(len(events[e_type][rID]) - 1): # for each event
+                e_t = events[e_type][rID][i]
+                e_tp1 = events[e_type][rID][i + 1]
+                if e_t[0] + timedelta(seconds=e_t[1]) == e_tp1[0]:
+                    # the 2 events can be joined into 1
+                    events[e_type][rID][i + 1][0] = events[e_type][rID][i][0]
+                    events[e_type][rID][i + 1][1] += events[e_type][rID][i][1]
+                    events[e_type][rID][i] = None
 
     # save the summarized events
-    event_summary = []
+    event_summary = dict()
+    unique_rIDs = []
     for e_type in events.keys(): # for each event type
-        for sID in events[e_type].keys(): # for each sensorID
-            for bID in events[e_type][sID].keys(): # for each bodyID
-                for i in range(len(events[e_type][sID][bID])): # for each event
-                    if events[e_type][sID][bID][i] is not None:
-                        events[e_type][sID][bID][i].append(e_type)
-                        events[e_type][sID][bID][i].append(bID)
-                        event_summary.append(events[e_type][sID][bID][i])
+        event_summary[e_type] = dict()
+        for rID in events[e_type].keys(): # for each re-id value
+            event_summary[e_type][rID] = []
+            for i in range(len(events[e_type][rID])): # for each event
+                if events[e_type][rID][i] is not None:
+                    event_summary[e_type][rID].append(events[e_type][rID][i])
+                if rID not in unique_rIDs:
+                    unique_rIDs.append(rID)
 
-    # format events into the desired output
-    event_summary = np.array(event_summary)
-    unique_bIDs = np.unique(event_summary[:, 4]).astype(int)
-    output = {bID: {} for bID in unique_bIDs}
-    for bID in unique_bIDs: # for each person
-        e_per_bID = event_summary[event_summary[:, 4] == bID]
-        for e_type in np.unique(e_per_bID[:, 3]).astype(str): # for each event type
-            n_events = np.sum(e_per_bID[:, 3] == e_type)
-            e = []
-            for i in range(n_events):
-                e_per_bID_per_e_type = e_per_bID[e_per_bID[:, 3] == e_type]
-                ts = e_per_bID_per_e_type[i][0].strftime("%H:%M:%S")
-                dur = e_per_bID_per_e_type[i][1]
-                e.append({"beginning": ts, "duration": str(dur)})
-            if n_events > 0:
-                output[bID][e_type] = dict([("number", n_events), ("event", e)])
+    # format events into the desired output (per re-id value)
+    output = {rID: {} for rID in unique_rIDs}
+    for rID in unique_rIDs: # for each person
+        for e_type in event_summary.keys(): # for each event type
+            if rID in event_summary[e_type].keys():
+                n_events = len(event_summary[e_type][rID])
+                e = []
+                for i in range(n_events):
+                    ts = event_summary[e_type][rID][i][0].strftime("%H:%M:%S")
+                    dur = event_summary[e_type][rID][i][1]
+                    e.append({"beginning": ts, "duration": str(dur)})
+                if n_events > 0:
+                    output[rID][e_type] = dict([("number", n_events), ("event", e)])
 
 
     return output
+
+
+def delete_events(db):
+
+    col = db.rtevents
+    deleted = col.delete_many({})
+
+
+    return deleted.deleted_count
 
 
 def delete_sensor_documents(db, time_interval):
@@ -202,12 +235,13 @@ def read_kinect_data_from_db(collection, time_interval, session, skeletonType, e
                 frame_body_joints = []
 
                 frame_body_joints.append( n_frame )
+                frame_body_joints.append( f['_id'] )
                 try:
                     frame_body_joints.append( body_frame['re_id'] )
                 except:
                     #print '------ re_id not available ----'
-                    frame_body_joints.append( f['_id'] )
-                
+                    frame_body_joints.append( '' )
+
                 frame_body_joints.append( body_frame['leanFB'] )
                 frame_body_joints.append( body_frame['leanLR'] )
                 frame_body_joints.append( body_frame['leanConfidence'] )
@@ -228,7 +262,7 @@ def read_kinect_data_from_db(collection, time_interval, session, skeletonType, e
                 # frame_body_joints.append(joints)
 
 
-                
+
                 for skeletonTypes in skeletonType:
                     joints = []
                     counter = 0
@@ -249,7 +283,7 @@ def read_kinect_data_from_db(collection, time_interval, session, skeletonType, e
                         counter += 1
 
                     frame_body_joints.append(joints)
-                
+
                 all_joints[n_id] = frame_body_joints
 
         all_data[f['SensorID']].append(all_joints)
@@ -272,7 +306,7 @@ def read_kinect_joints_from_db(kinect_collection,time_interval):
 
 
     joint_points = []
-   
+
     for n_frame,f in enumerate(frame_with_joints):
 
         # takes only data within the selected time interval
@@ -291,7 +325,7 @@ def read_kinect_joints_from_db(kinect_collection,time_interval):
                     #trackID is read from re-id algorithm if it had been applied, otherwise we read kinect id
                     try:
                         frame_body_joints[0,2] = body_frame['re_id']
-                    except Exception as e:      
+                    except Exception as e:
                         frame_body_joints[0,2] = n_id
 
                     #joints
@@ -616,42 +650,26 @@ def save_matrix_pickle(file, path):
     return file
 
 
-def summary_MSBand(db, inpdate=None):
+def summary_MSBand(db, time_interval):
 
     """
 
-    Read MSBand data from db
+    Summarize biological measurements for a specific time period
 
-    ------------------------------------------------------------------------------------------
-    Parameters:
-
-    db:
-        The mongo db database
-
-    date: empty (-> today)  or vector
-        requested date
-
-
-    ------------------------------------------------------------------------------------------
-    Example: summary_MSBand('localhost', date=None):
-    ------------------------------------------------------------------------------------------
 
     """
 
     colMSBand = db.MSBand
 
-    if inpdate==None:
-        date = datetime.now()
-    else:
-        date = datetime(inpdate[0], inpdate[1], inpdate[2], 0, 0, 0)
-
-    timeStart = date.strftime("%Y-%m-%d 00:00:00")
-    timeEnd = date.strftime("%Y-%m-%d 23:59:59")
+    timeStart = time_interval[0]
+    timeEnd = time_interval[1]
 
     d_all = read_MSBand_from_db_asDict(collection=colMSBand,
-												time_interval=[timeStart, timeEnd],
-												session='')
+                                       time_interval=[timeStart, timeEnd],
+                                       session='')
 
+    out_hbr = dict()
+    out_gsr = dict()
     for key in d_all.keys():
 
         d = d_all[key]
@@ -660,262 +678,59 @@ def summary_MSBand(db, inpdate=None):
             print 'Discarding {0} measurements with invalid key \'{1}\''.format(len(d), key)
             continue
 
-        # Remove duplicates and detect when minute/hour is changing
-        AllHBR_S = []
-        AllGSR_S = []
-        lastHBRTimestamp = []
-        lastGSRTimestamp = []
-
-        qq=timedelta(seconds=-1)
-
-        SensorIDs = dict()
-
-        SensorIDs[key] = len(SensorIDs)
-        AllHBR_S.append(pd.DataFrame())
-        AllGSR_S.append(pd.DataFrame())
-        lastHBRTimestamp.append(d[0]['hrTS'] + qq)
-        lastGSRTimestamp.append(d[0]['gsrTS'] + qq)
-        numberOfBands = len(SensorIDs)
-
-        start_time = time.time()
-        print "measuring"
+        hr = []
+        gsr = []
         for i in range(len(d)):
 
-            HBR_NMI = False
-            HBR_NHI = False
-            GSR_NMI = False
-            GSR_NHI = False
+            if d[i]['hr'] > 0 and d[i]['hrConfidence'] > 0:
+                hr.append(d[i]['hr'])
 
-            Band = SensorIDs[key]
-            if d[i]['hrTS']!=lastHBRTimestamp[Band]:
-                if d[i]['hrTS'].minute!=lastHBRTimestamp[Band].minute:
-                    HBR_NMI=True
-                if d[i]['hrTS'].hour!=lastHBRTimestamp[Band].hour:
-                    HBR_NHI=True
+            if d[i]['gsr'] > 0 and d[i]['gsr'] < 200000:
+                gsr.append(d[i]['gsr'])
 
-                if d[i]['hr'] > 0 and d[i]['hrConfidence'] > 0:
-                    AllHBR_S[Band] = AllHBR_S[Band].append({'HBR Time': d[i]['hrTS'],'New Minute Index':HBR_NMI,'New Hour Index':HBR_NHI, 'HBR value': d[i]['hr']}, ignore_index=True)
-                    lastHBRTimestamp[Band] = d[i]['hrTS']
+        hr = np.array(hr)
+        gsr = np.array(gsr)
 
-            if d[i]['gsrTS']!=lastGSRTimestamp:
-                if d[i]['gsrTS'].minute!=lastGSRTimestamp[Band].minute:
-                    GSR_NMI=True
-                if d[i]['gsrTS'].hour!=lastGSRTimestamp[Band].hour:
-                    GSR_NHI=True
+        result_hr = {'start': timeStart,
+                     'end': timeEnd,
+                     'n': 0,
+                     'min': 0,
+                     '25': 0,
+                     '50': 0,
+                     '75': 0,
+                     'max': 0}
 
-                if d[i]['gsr'] > 0 and d[i]['gsr'] < 200000:
-                    AllGSR_S[Band] = AllGSR_S[Band].append({'GSR Time': d[i]['gsrTS'],'New Minute Index':GSR_NMI,'New Hour Index':GSR_NHI, 'GSR value': d[i]['gsr']}, ignore_index=True)
-                    lastGSRTimestamp[Band] = d[i]['gsrTS']
+        result_gsr = {'start': timeStart,
+                     'end': timeEnd,
+                     'n': 0,
+                     'min': 0,
+                     '25': 0,
+                     '50': 0,
+                     '75': 0,
+                     'max': 0}
 
-        elapsed_time = time.time() - start_time
-        print elapsed_time
+        if hr.shape[0] > 0:
+            result_hr['n'] = int(hr.shape[0])
+            result_hr['min'] = np.min(hr)
+            result_hr['25'] = np.percentile(hr, 25)
+            result_hr['50'] = np.percentile(hr, 50)
+            result_hr['75'] = np.percentile(hr, 75)
+            result_hr['max'] = np.max(hr)
 
-        t=list(SensorIDs.keys())
-        BandNames = list(SensorIDs.keys())
-        for i in range(len(t)):
-            BandNames[SensorIDs[t[i]]] = t[i]
+        if gsr.shape[0] > 0:
+            result_gsr['n'] = int(gsr.shape[0])
+            result_gsr['min'] = np.min(gsr)
+            result_gsr['25'] = np.percentile(gsr, 25)
+            result_gsr['50'] = np.percentile(gsr, 50)
+            result_gsr['75'] = np.percentile(gsr, 75)
+            result_gsr['max'] = np.max(gsr)
 
-        import unicodedata
-
-        for i in range(len(BandNames)):
-            BandNames[i]= unicodedata.normalize('NFKD', BandNames[i]).encode('ascii','ignore')
-            BandNames[i] = BandNames[i].replace(':','_')
-
-        for band in range(numberOfBands):
-
-            AllHBR = AllHBR_S[band]
-            AllGSR = AllGSR_S[band]
-
-            # Collect minute and hour data
-            # HBR
-            ww=AllHBR.loc[AllHBR['New Minute Index']==1.0]
-            HDR_min_idx = np.array(ww.index.tolist())
-
-            ww=AllHBR.loc[AllHBR['New Hour Index']==1.0]
-            HDR_hour_idx=np.zeros([1,1])
-            if ww.empty==0:
-                HDR_hour_idx = np.append(HDR_hour_idx,ww.index)
-            HDR_hour_idx = np.append(HDR_hour_idx,AllHBR.shape[0])
-
-            # GSR
-            ww=AllGSR.loc[AllGSR['New Minute Index']==1.0]
-            GSR_min_idx = np.array(ww.index.tolist())
-
-            ww=AllGSR.loc[AllGSR['New Hour Index']==1.0]
-            GSR_hour_idx=np.zeros([1,1])
-            if ww.empty==0:
-                GSR_hour_idx = np.append(GSR_hour_idx,ww.index)
-            GSR_hour_idx = np.append(GSR_hour_idx,AllGSR.shape[0])
-
-            HBR_PerMin =[]
-            m=AllHBR.loc[HDR_min_idx]['HBR value']
-            HBR_PerMin.append(m.tolist())
-            m=AllHBR.loc[HDR_min_idx]['HBR Time'].dt.hour
-            HBR_PerMin.append(m.tolist())
-            m=AllHBR.loc[HDR_min_idx]['HBR Time'].dt.minute
-            HBR_PerMin.append(m.tolist())
-
-            GSR_PerMin =[]
-            m=AllGSR.loc[GSR_min_idx]['GSR value']
-            GSR_PerMin.append(m.tolist())
-            m=AllGSR.loc[GSR_min_idx]['GSR Time'].dt.hour
-            GSR_PerMin.append(m.tolist())
-            m=AllGSR.loc[GSR_min_idx]['GSR Time'].dt.minute
-            GSR_PerMin.append(m.tolist())
-
-            # Statistics per hour
-            # HBR
-            timestamps_HBR=[]
-            stats_HBR =[]
-            for i in range(len(HDR_hour_idx)-1):
-                hour_HBR_data = AllHBR.loc[HDR_hour_idx[i]:HDR_hour_idx[i+1]]['HBR value']
-                s=[]
-                t = hour_HBR_data.describe()
-                s.append([t['50%'], t['25%'],t['75%'],2.5*t['25%']-1.5*t['75%'],2.5*t['75%']-1.5*t['25%']])
-                outlier_low  = hour_HBR_data.loc[hour_HBR_data<s[0][3]].tolist()
-                outlier_high = hour_HBR_data.loc[hour_HBR_data>s[0][4]].tolist()
-                s.append(outlier_low)
-                s.append(outlier_high)
-                stats_HBR.append(s)
-                timestamps_HBR.append(AllHBR.loc[HDR_hour_idx[i]]['HBR Time'])
-
-            # GSR
-            timestamps_GSR=[]
-            stats_GSR =[]
-            for i in range(len(GSR_hour_idx)-1):
-                hour_GSR_data = AllGSR.loc[GSR_hour_idx[i]:GSR_hour_idx[i+1]]['GSR value']
-                s=[]
-                t = hour_GSR_data.describe()
-                s.append([t['50%'], t['25%'],t['75%'],2.5*t['25%']-1.5*t['75%'],2.5*t['75%']-1.5*t['25%']])
-                outlier_low  = hour_GSR_data.loc[hour_GSR_data<s[0][3]].tolist()
-                outlier_high = hour_GSR_data.loc[hour_GSR_data>s[0][4]].tolist()
-                s.append(outlier_low)
-                s.append(outlier_high)
-                stats_GSR.append(s)
-                timestamps_GSR.append(AllGSR.loc[GSR_hour_idx[i]]['GSR Time'])
-
-            # Save to file
-            # HBR (one per minute)
-            filename = 'HBR_per_minute_'+str(inpdate[0])+'-'+str(inpdate[1])+'-'+str(inpdate[2])+ '_' + BandNames[band] +'.txt'
-            print filename
-            file = open(filename, 'w')
-
-            ss="{'number':"+str(len(HBR_PerMin[0]))+", 'time':["
-            for i in range(len(HBR_PerMin[0])):
-                ss=ss+("['"+'{0:02d}:{1:02d}'.format(HBR_PerMin[1][i], HBR_PerMin[2][i])+"']")
-
-                if i<len(HBR_PerMin[0])-1:
-                    ss=ss+","
-            ss=ss+"], 'HBR':"+str((HBR_PerMin[0]))+'}'
-
-            file.write(ss)
-            file.close()
-
-            # GSR (one per minute)
-            filename = 'GSR_per_minute_'+str(inpdate[0])+'-'+str(inpdate[1])+'-'+str(inpdate[2])+ '_' + BandNames[band] +'.txt'
-            print filename
-            file = open(filename, 'w')
-
-            ss="{'number':"+str(len(GSR_PerMin[0]))+", 'time':["
-            for i in range(len(GSR_PerMin[0])):
-                ss=ss+("['"+'{0:02d}:{1:02d}'.format(GSR_PerMin[1][i], GSR_PerMin[2][i])+"']")
-
-                if i<len(GSR_PerMin[0])-1:
-                    ss=ss+","
-            ss=ss+"], 'GSR':"+str((GSR_PerMin[0]))+'}'
-
-            file.write(ss)
-            file.close()
-
-            # HBR (boxplot stats)
-            filename = 'HBR_per_hour_stats_'+str(inpdate[0])+'-'+str(inpdate[1])+'-'+str(inpdate[2])+ '_' + BandNames[band] +'.txt'
-            file = open(filename, 'w')
-
-            ss="{'number':"+str(len(stats_HBR))+", 'time':["
-            for i in range(len(stats_HBR)-1):
-                ss=ss+ "['"+ '{0:02d}:{1:02d}'.format(timestamps_HBR[i].hour, timestamps_HBR[i].minute) + "]"
-            ss=ss+ "['"+ '{0:02d}:{1:02d}'.format(timestamps_HBR[len(stats_HBR)-1].hour, timestamps_HBR[len(stats_HBR)-1].minute) + "]"
-
-            for i in range(len(stats_HBR)):
-                ss=ss+", ['50%':"+str(stats_HBR[i][0][0])
-                ss=ss+", '25%':"+str(stats_HBR[i][0][1])
-                ss=ss+", '75%':"+str(stats_HBR[i][0][2])
-                ss=ss+", '+1.5IQR':"+str(stats_HBR[i][0][3])
-                ss=ss+", '-1.5IQR':"+str(stats_HBR[i][0][4])
-                ss=ss+", 'outliers_below':"+str(stats_HBR[i][1])
-                ss=ss+", 'outliers_above':"+str(stats_HBR[i][2])
-                ss=ss +']'
-
-            ss=ss +'}'
-
-            file.write(ss)
-            file.close()
-
-            # GSR (boxplot stats)
-            filename = 'GSR_per_hour_stats_'+str(inpdate[0])+'-'+str(inpdate[1])+'-'+str(inpdate[2])+ '_' + BandNames[band] +'.txt'
-            file = open(filename, 'w')
-
-            ss="{'number':"+str(len(stats_GSR))+", 'time':["
-            for i in range(len(stats_GSR)-1):
-                ss=ss+ "['"+ '{0:02d}:{1:02d}'.format(timestamps_GSR[i].hour, timestamps_GSR[i].minute) + "]"
-            ss=ss+ "['"+ '{0:02d}:{1:02d}'.format(timestamps_GSR[len(stats_GSR)-1].hour, timestamps_GSR[len(stats_GSR)-1].minute) + "]"
-
-            for i in range(len(stats_GSR)):
-                ss=ss+", ['50%':"+str(stats_GSR[i][0][0])
-                ss=ss+", '25%':"+str(stats_GSR[i][0][1])
-                ss=ss+", '75%':"+str(stats_GSR[i][0][2])
-                ss=ss+", '+1.5IQR':"+str(stats_GSR[i][0][3])
-                ss=ss+", '-1.5IQR':"+str(stats_GSR[i][0][4])
-                ss=ss+", 'outliers_below':"+str(stats_GSR[i][1])
-                ss=ss+", 'outliers_above':"+str(stats_GSR[i][2])
-                ss=ss +']'
-
-            ss=ss +'}'
-
-            file.write(ss)
-            file.close()
+        out_hbr[key] = result_hr
+        out_gsr[key] = result_gsr
 
 
-def summarize_events_certh(event_name, path):
+    return out_hbr, out_gsr
 
-    import numpy as np
-
-
-    data = np.genfromtxt(path, delimiter=',', dtype='str')
-
-    dataTS = data[:, 0]
-    dataV = data[:, 1].astype(float)
-
-    datetimeFormat = '%Y-%m-%d %H:%M:%S'
-
-    events = []
-    candidates = np.nonzero(dataV)[0]
-    for i in range(candidates.shape[0]):
-        if i == 0:
-            events.append([])
-            events[-1].append(candidates[i])
-        else:
-            if candidates[i] - events[-1][-1] == 1:
-                events[-1].append(candidates[i])
-            else:
-                events.append([])
-                events[-1].append(candidates[i])
-
-    times = []
-    durations = []
-    for i in range(len(events)):
-        times.append( dataTS[events[i][0]] )
-        t1 = datetime.strptime(dataTS[events[i][0]], datetimeFormat)
-        t2 = datetime.strptime(dataTS[events[i][-1]], datetimeFormat)
-        tsec = 1 + (t2-t1).seconds
-        h = tsec / 3600
-        m = (tsec - h * 3600) / 60
-        s = tsec - h * 3600 - m * 60
-        durations.append('{0:02d}:{1:02d}:{2:02d}'.format(h, m, s))
-
-
-    return '{0}: {{\'number\': {1}, \'beginning\': {2}, \'duration\': {3}}}'.format(\
-                                                        event_name, len(events), times, durations)
 
 #personMSBand = "MSFT Band UPM f6:65"
 def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_activation, night_motion_as_activation,freezing_analysis,festination_analysis,\
@@ -927,7 +742,7 @@ def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_a
     uuids = dbIDs.find()
     for uuid_person in uuids:
         final_sumarization = {'patientID': uuid_person["PersonID"],"date": time.strftime("%Y-%m-%d"),"daily_motion": kinect_motion_amount[uuid_person["SensorID"]], "as_day_motion": day_motion_as_activation[uuid_person["SensorID"]], "as_night_motion": night_motion_as_activation[uuid_person["SensorID"]], "freezing": freezing_analysis[uuid_person["SensorID"]], "festination": festination_analysis[uuid_person["SensorID"]], "loss_of_balance": loss_of_balance_analisys[uuid_person["SensorID"]], "fall_down": fall_down_analysis[uuid_person["SensorID"]], "visit_bathroom": nr_visit[uuid_person["SensorID"]], "confusion_behaviour_detection": confusion_analysis[uuid_person["SensorID"]], "leave_the_house": lh_number[uuid_person["SensorID"]], "leave_house_confused": lhc_number[uuid_person["SensorID"]]}
-        
+
         date_in_title = time.strftime("%Y-%m-%d").split('-')
         filename_json = path_to_lambda + uuid_person["PersonID"] + '_' + date_in_title[0]+date_in_title[1]+date_in_title[2]+ '.json'
         with open(filename_json, 'w') as outfile:
@@ -936,7 +751,7 @@ def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_a
         fileManager = S3FileManager.S3FileManger('hetra/out', '')
         fileManager.upload_file(filename_json, uuid_person["PersonID"] + '_' + date_in_title[0]+date_in_title[1]+date_in_title[2]+ '.json')
         print 'json summarization uploaded to the amazon web server!'
-    
+
 
 def get_bands_ID(db):
     bands_collection = db.BandPersonIDs.find()
@@ -949,4 +764,4 @@ def get_bands_ID(db):
     return band_ids
 
 
-    
+
