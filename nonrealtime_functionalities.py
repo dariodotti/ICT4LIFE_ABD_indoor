@@ -33,7 +33,8 @@ def daily_motion_training(db,avaliable_sensor, time_interval):
         bands_ids = database.get_bands_ID(db)
         global_traj_features = kinect_features.feature_extraction_video_traj(kinect_joints, bands_ids, draw_joints_in_scene=0, realtime=0)
 
-        kinect_motion_amount_band = []
+        kinect_motion_amount_band = {b[0]: None for b in bands_ids}
+        
         ## compute analysis per band
         for i_b,b in enumerate(bands_ids):
 			if len(global_traj_features[1][i_b])>0:
@@ -58,11 +59,11 @@ def daily_motion_training(db,avaliable_sensor, time_interval):
 				for n_k, k_data in enumerate(kinect_motion_amount[0]): kinect_motion_amount[0][n_k] = k_data / total_motion
 
 				##make it dictionary
-				kinect_motion_amount_band.append({'stationary': kinect_motion_amount[0][0],'slow_mov': kinect_motion_amount[0][1],'fast_mov': kinect_motion_amount[0][2]})
+				kinect_motion_amount_band[b[0]]= {'stationary': kinect_motion_amount[0][0],'slow_mov': kinect_motion_amount[0][1],'fast_mov': kinect_motion_amount[0][2]}
 				print b[0], {'stationary': kinect_motion_amount[0][0],'slow_mov': kinect_motion_amount[0][1],'fast_mov': kinect_motion_amount[0][2]}
 			else:
 				print 'no data from band: ', b[0]
-				kinect_motion_amount_band.append({})
+				kinect_motion_amount_band[b[0]] = {'stationary': -1,'slow_mov': -1,'fast_mov': -1}
     else:
         print '--------------- no data in the time interval ---------------------'
         kinect_motion_amount = 0
@@ -320,6 +321,9 @@ def main_nonrealtime_functionalities():
     lh_number = jdata
     lhc_number = jdata
     nr_visit = jdata
+    day_motion_as_activation = jdata
+
+
 
     # @todo: summarize HBR, GSR in case of confusion
     # hr, gsr = database.summary_MSBand(db, ['2018-02-22 12:55:17', '2018-02-22 12:59:17'])
