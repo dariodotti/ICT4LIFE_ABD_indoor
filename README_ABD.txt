@@ -1,31 +1,27 @@
 Abnormal Behavior Detection subsystem 
-Author: Dario Dotti
+Authors: UM,UPM,CERTH 
 
-The first version of the system focus only on non-realtime functionalities listed in the functionality table. 
+This code has two main function depending on the use.
 
-INPUT: The system asks as input a configuration file that contains all the parameters that have to be modified often. The first parameters in the file is available_sensor that allows
-you to run all the functionalies in the system even if you are missing sensor's data. For example if you do not have the abient sensors, you have to set it to 0 and the system will not call
-the ambient sensor class.
+nonrealtime_functionalities.py 
 
-OUTPUT: Depending on the functionality it plots the selected data, it labels an activity pattern using classifiers, or it save data into the database.
+It contains all the functions for off line behaviors analysis.  First the re-id code is run to match the kinect trajectory with the MS band, then all the 
+method listed in the functionality table described in Task 3.3 are launched.
+Finally, a summarization file is created for the Higher modules.
 
+ARGUMENTS TO CALL THIS FUNCTION: 
+PATH\nonrealtime_functionalities.py PATH\conf_file_abd_ict4life.xml "2018-03-02 23:00:00"
 
-Classes:
-
-nonrealtime_functionalities.py is the main class. First it loads all the parameters from the cofiguration file using the conf_file.py class, then it calls all the non-realtime 
-functionaties (e.g. daily motion, night motion).
-
-conf_file.py reads the parameters from the configuration file. 
-
-database.py reads the sensors data recorded in a certain time interval from the database.
-
-classifiers.py contains some supervised/ unsupervised classifiers from scikit library
-
-visualization.py contains method to plot the data 
+In this example, the file will analyze the 24h before the selected date.
 
 
-Classes only for tasks belonging to University of Maastricht:
+####################
 
-kinect_global_trajectories.py
-img_processing_kinect.py
-ambient_sensor.py
+realtime_functionalities.py
+
+It contains all the function that work in real-time, it continuously read the last 1 second of data from the db, and 
+it run the functions to analyze it. If Abnormality is detected, a notification will be send to the phone connected to the MSband.
+
+ARGUMENTS TO CALL THIS FUNCTION: 
+
+PATH\nonrealtime_functionalities.py PATH\conf_file_abd_ict4life.xml
