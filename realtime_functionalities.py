@@ -214,7 +214,7 @@ def fall_down_manager(skeletons, jointsOfInterest, requestInterval, timeStart, f
 def loss_of_balance_manager(skeletons, idSkeleton, stand, requestInterval, requestDate, timeStart, results, key):
 
     #print '-----------loss of balance manager-------------'
-    
+
     idSkeleton = np.array(idSkeleton)
 
     for k in range(len(skeletons)):
@@ -244,11 +244,46 @@ def loss_of_balance_manager(skeletons, idSkeleton, stand, requestInterval, reque
 
 
                     results.append({'TimeStamp': timeStart,
-                                         'Event': 'LossOfBalance',
-                                         'Duration': int(requestInterval),
-                                         'Sensor': 'Kinect',
-                                         'SensorID': key,
-                                         'BodyID': int(np.nonzero(idSkeleton)[0][k])})
+                                    'Event': 'LossOfBalance',
+                                    'Duration': int(requestInterval),
+                                    'Sensor': 'Kinect',
+                                    'SensorID': key,
+                                    'BodyID': int(np.nonzero(idSkeleton)[0][k])})
+
+    return results
+
+
+def heart_rate_manager(d_all_MSband, timeStart, requestInterval, thrLower, thrUpper, thrLength, results):
+
+    for key in d_all_MSband.keys():
+
+        d = d_all_MSband[key]
+
+        hr = []
+        for i in range(len(d)):
+            if d[i][9] > 0: # hr confidence
+                hr.append(d[i][8])
+
+        hr = np.array(hr)
+
+        indLower = hr < thrLower
+        indUpper = hr > thrUpper
+
+        if np.sum(indLower) > thrLength:
+            results.append({'TimeStamp': timeStart,
+                            'Event': 'HeartRateLow',
+                            'Duration': int(requestInterval),
+                            'Sensor': 'MSBand',
+                            'SensorID': key,
+                            'BodyID': -1})
+
+        if np.sum(indUpper) > thrLength:
+            results.append({'TimeStamp': timeStart,
+                            'Event': 'HeartRateHigh',
+                            'Duration': int(requestInterval),
+                            'Sensor': 'MSBand',
+                            'SensorID': key,
+                            'BodyID': -1})
 
     return results
 
@@ -495,7 +530,7 @@ def main_realtime_functionalities():
 
         ##To test it nonrealtime##
         #date_end = datetime.strptime('2018-01-09 08:44:13', '%Y-%m-%d %H:%M:%S')
-        
+
         ## start loop for realtime
         while True:
 
@@ -603,11 +638,20 @@ def main_realtime_functionalities():
                         ## send live notification
                         get_token.real_report('MSFT Band UPM f6:65', event['Event'])
 
-            
+            results = []
+            results = heart_rate_manager(d_all_MSband, timeStart, requestInterval, 50, 120, 10, results)
+
+            # write results to db
+            for event in results:
+                # writing the results into the db
+                database.write_event(db, event)
+                # send live notification
+                #get_token.real_report('MSFT Band UPM f6:65', event['Event'])
+
             requestDate = requestDate + timedelta(seconds=requestInterval)
             ##To test it non real time
             #date_end = requestDate
-            
+
             t2 = datetime.now()
             if (t2 - t1).seconds < requestInterval:
                 time.sleep(requestInterval - (t2 - t1).seconds)
