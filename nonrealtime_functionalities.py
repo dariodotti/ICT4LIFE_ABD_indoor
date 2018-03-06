@@ -14,8 +14,7 @@ import conf_file
 import requests
 import os
 
-
-
+import copy
 
 
 def daily_motion_training(db,avaliable_sensor, time_interval):
@@ -26,8 +25,8 @@ def daily_motion_training(db,avaliable_sensor, time_interval):
         ##get data from database
         kinect_joints = database.read_kinect_joints_from_db(db.Kinect,time_interval)
 
-        if len(kinect_joints) <1: 
-            print '----- no data in time interval -----' 
+        if len(kinect_joints) <1:
+            print '----- no data in time interval -----'
             return 0
 
         #extract features from kinect from each user
@@ -61,7 +60,7 @@ def daily_motion_training(db,avaliable_sensor, time_interval):
 				##make it dictionary
 				kinect_motion_amount_band.append({'stationary': kinect_motion_amount[0][0],'slow_mov': kinect_motion_amount[0][1],'fast_mov': kinect_motion_amount[0][2]})
 				print b[0], {'stationary': kinect_motion_amount[0][0],'slow_mov': kinect_motion_amount[0][1],'fast_mov': kinect_motion_amount[0][2]}
-			else:  
+			else:
 				print 'no data from band: ', b[0]
 				kinect_motion_amount_band.append({})
     else:
@@ -262,7 +261,7 @@ def main_nonrealtime_functionalities():
 
     #connect to the db
     db = database.connect_db('local')
-    
+
     ## time interval to analyze
     time_interval = [begin_period.strftime('%Y-%m-%d %H:%M:%S'),end_period.strftime('%Y-%m-%d %H:%M:%S')]
 
@@ -276,13 +275,16 @@ def main_nonrealtime_functionalities():
 
     #apathy()
 
-    freezing_analysis,festination_analysis = get_freezing_festination(db)
+    #freezing_analysis, festination_analysis = get_freezing_festination(db)
 
     ##TODO: open the summarization file from the realtime activities and read the values for :
-    ## loss_of_balance_analisys,fall_down_analysis,confusion_analysis
+    ## loss_of_balance_analisys, fall_down_analysis, confusion_analysis
 
-    #freezing_analysis =0
-    #festination_analysis=0
+    # real-time event summarization
+    rt_events_summary = database.summarize_events(db)
+
+    # @todo: choose when to delete events from db
+    #deleted = database.delete_events()
 
     client = Connection('localhost', 27017)
     dbIDs = client['local']['BandPersonIDs']
@@ -291,20 +293,36 @@ def main_nonrealtime_functionalities():
     for uuid_person in uuids:
     	jdata[uuid_person["SensorID"]] = 0
 
+    jdata_lob = copy.deepcopy(jdata)
+    jdata_fall = copy.deepcopy(jdata)
+    jdata_hrL = copy.deepcopy(jdata)
+    jdata_hrH = copy.deepcopy(jdata)
+    for rID in rt_events_summary:
+        if rt_events_summary[rID].has_key("LossOfBalance"):
+            jdata_lob[rID] = rt_events_summary[rID]["LossOfBalance"]
 
-    loss_of_balance_analisys = jdata
-    fall_down_analysis = jdata
+        if rt_events_summary[rID].has_key("FallDown"):
+            jdata_fall[rID] = rt_events_summary[rID]["FallDown"]
+
+        if rt_events_summary[rID].has_key("HeartRateLow"):
+            jdata_hrL[rID] = rt_events_summary[rID]["HeartRateLow"]
+
+        if rt_events_summary[rID].has_key("HeartRateHigh"):
+            jdata_hrH[rID] = rt_events_summary[rID]["HeartRateHigh"]
+
+    freezing_analysis = jdata
+    festination_analysis = jdata
+    loss_of_balance_analysis = jdata_lob
+    fall_down_analysis = jdata_fall
+    heart_rate_low = jdata_hrL
+    heart_rate_high = jdata_hrH
     confusion_analysis = jdata
     lh_number = jdata
     lhc_number = jdata
     nr_visit = jdata
 
-    # summarize HBR, GSR
-    #database.summary_MSBand(db,[2017, 7, 6])
-
-    #database.summarize_events_certh('freezing', path)
-    ##-------
-
+    # @todo: summarize HBR, GSR in case of confusion
+    # hr, gsr = database.summary_MSBand(db, ['2018-02-22 12:55:17', '2018-02-22 12:59:17'])
 
     ##if we want the total number of visit we take it from the day and night motion
     # as_motion_for_json = {key: [] for key in day_motion_as_activation.keys()}
@@ -318,15 +336,20 @@ def main_nonrealtime_functionalities():
     ###### summarization ####
     ##at the end of the day summarize and write all the results in a file that will be uploaded into amazon web services
     # Matching person band with uuid and send summarization for one patient
-    database.write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_activation, day_motion_as_activation,\
-        freezing_analysis,festination_analysis, loss_of_balance_analisys, fall_down_analysis, nr_visit, confusion_analysis,lh_number,lhc_number  )
-    
-
-
-
-
-
-
+    database.write_summarization_nonrealtime_f_json(
+            kinect_motion_amount,
+            day_motion_as_activation,
+            day_motion_as_activation,
+            freezing_analysis,
+            festination_analysis,
+            loss_of_balance_analysis,
+            fall_down_analysis,
+            nr_visit,
+            confusion_analysis,
+            lh_number,
+            lhc_number,
+            heart_rate_low,
+            heart_rate_high)
 
 
 if __name__ == '__main__':
