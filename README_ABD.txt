@@ -24,4 +24,4 @@ it run the functions to analyze it. If Abnormality is detected, a notification w
 
 ARGUMENTS TO CALL THIS FUNCTION: 
 
-PATH\nonrealtime_functionalities.py PATH\conf_file_abd_ict4life.xml
+PATH\realtime_functionalities.py PATH\conf_file_abd_ict4life.xml
