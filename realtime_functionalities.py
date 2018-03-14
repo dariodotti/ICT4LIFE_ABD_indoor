@@ -65,8 +65,8 @@ def model_Fall_skel(nSteps, nVars, RNN, lrnRate, pDrop=0.5):
                  return_sequences=True,
                  stateful=RNN[1],
                  unroll=True,
-                 dropout=pDrop,
-                 recurrent_dropout=pDrop,
+                 dropout=0,#pDrop,
+                 recurrent_dropout=0,#pDrop,
                  activation='tanh')(model_in)
 
         x = TimeDistributed(Dense(units=RNN[0],
@@ -306,8 +306,8 @@ def model_Fall_acc(nSteps, nVars, RNN, lrnRate, pDrop=0.5):
                  return_sequences=False,
                  stateful=RNN[1],
                  unroll=True,
-                 dropout=pDrop,
-                 recurrent_dropout=pDrop,
+                 dropout=0,#pDrop,
+                 recurrent_dropout=0,#pDrop,
                  activation='tanh')(model_in)
 
         x = Dense(units=RNN[0],
@@ -349,8 +349,8 @@ def model_Festination(nSteps, nVars, RNN, lrnRate, pDrop=0.5):
                  return_sequences=True,
                  stateful=RNN[1],
                  unroll=True,
-                 dropout=pDrop,
-                 recurrent_dropout=pDrop,
+                 dropout=0,#pDrop,
+                 recurrent_dropout=0,#pDrop,
                  activation='linear')(model_in)
 
         x = LSTM(units=RNN[0],
@@ -358,8 +358,8 @@ def model_Festination(nSteps, nVars, RNN, lrnRate, pDrop=0.5):
                  return_sequences=False,
                  stateful=RNN[1],
                  unroll=True,
-                 dropout=pDrop,
-                 recurrent_dropout=pDrop,
+                 dropout=0,#pDrop,
+                 recurrent_dropout=0,#pDrop,
                  activation='linear')(x)
 
         x = Dense(units=RNN[0],
@@ -400,8 +400,8 @@ def model_LossOfBalance(nSteps, nVars, RNN, lrnRate, pDrop=0.5):
              return_sequences=True,
              stateful=RNN[1],
              unroll=True,
-             dropout=pDrop,
-             recurrent_dropout=pDrop,
+             dropout=0,#pDrop,
+             recurrent_dropout=0,#pDrop,
              activation='linear')(model_in)
 
     x = LSTM(units=RNN[0],
@@ -409,8 +409,8 @@ def model_LossOfBalance(nSteps, nVars, RNN, lrnRate, pDrop=0.5):
              return_sequences=False,
              stateful=RNN[1],
              unroll=True,
-             dropout=pDrop,
-             recurrent_dropout=pDrop,
+             dropout=0,#pDrop,
+             recurrent_dropout=0,#pDrop,
              activation='linear')(x)
 
     x = Dense(units=RNN[0],
@@ -597,16 +597,16 @@ def main_realtime_functionalities():
                             hasSkeleton[j] == False
 
                         if d[i][j] != []:
-                            skeletons_4_falldown[idSkeleton[j] - 1].append([kinect_features.unix_time_ms(d[i][j][1]), np.array(d[i][j][6])])
-                            coords.append(100 * np.array(d[i][j][6])[:, :-1])
-                            confidence.append(np.array(d[i][j][6])[:, -1])
-                            skeletons_4_lb[idSkeleton[j] - 1].append([d[i][j][2], d[i][j][3]])
-                            skeletoncoords.append((np.matmul(R_lb.T, coords[-1].T) + T_lb.T).T)
-                            skeletons_4_disorientation.append(np.array(d[i][j][7]))
+							skeletons_4_falldown[idSkeleton[j] - 1].append([kinect_features.unix_time_ms(d[i][j][1]), np.array(d[i][j][7])])
+							coords.append(100 * np.array(d[i][j][7])[:, :-1])
+							confidence.append(np.array(d[i][j][7])[:, -1])
+							skeletons_4_lb[idSkeleton[j] - 1].append([d[i][j][3], d[i][j][4]])
+							skeletoncoords.append((np.matmul(R_lb.T, coords[-1].T) + T_lb.T).T)
+							skeletons_4_disorientation.append(np.array(d[i][j][8]))
 
 
-                            stand[idSkeleton[j] - 1].append(standing(np.array(skeletoncoords[-1]),
-                                                                                 np.array(confidence[-1]), 0))
+							stand[idSkeleton[j] - 1].append(standing(np.array(skeletoncoords[-1]),
+																				 np.array(confidence[-1]), 0))
 
                 results = fall_down_manager(skeletons_4_falldown, jointsOfInterest, requestInterval, timeStart, fps,
                                             model_fall_down, d, key, results, d_all_MSband, idSkeleton)
@@ -633,10 +633,11 @@ def main_realtime_functionalities():
                 ## writing the results into the db
                 if len(results) > 0:
                     for event in results:
+						print event
                         ## writing the results into the db
-                        database.write_event(db, event)
+						database.write_event(db, event)
                         ## send live notification
-                        get_token.real_report('MSFT Band UPM f6:65', event['Event'])
+                        #get_token.real_report('MSFT Band UPM f6:65', event['Event'])
 
             results = []
             results = heart_rate_manager(d_all_MSband, timeStart, requestInterval, 50, 120, 10, results)

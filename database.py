@@ -272,6 +272,8 @@ def read_kinect_data_from_db(collection, time_interval, session, skeletonType, e
 
                         joints[counter].append( body_frame['skeleton'][skeletonTypes][j]['x'] )
                         joints[counter].append( body_frame['skeleton'][skeletonTypes][j]['y'] )
+						#joints[counter].append( body_frame['skeleton'][skeletonTypes][j]['z'] )
+						#joints[counter].append( body_frame['skeleton'][skeletonTypes][j]['confidence'] )
 
                         if skeletonTypes == 'rawGray':
                             ## raw gray has wrong z coordinates so I take the raw one
