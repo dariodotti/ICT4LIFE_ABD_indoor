@@ -304,22 +304,23 @@ def read_kinect_joints_from_db(kinect_collection,time_interval):
     #frame_with_joints = kinect_collection.find({})
 
     ## start to find from the most recent ##
-    frame_with_joints =kinect_collection.find().sort([('_id',pymongo.DESCENDING)])#pymongo.DESCENDING
-
+    #frame_with_joints =kinect_collection.find().sort([('_id',pymongo.DESCENDING)])#pymongo.ASCENDING
+    frame_with_joints = kinect_collection.find({'_id':{'$lt': end_period, '$gte': begin_period}})
+    
 
     joint_points = []
 
     for n_frame,f in enumerate(frame_with_joints):
-
+        
         # takes only data within the selected time interval
         if begin_period <= f['_id'] <= end_period:
-
             for n_id,body_frame in enumerate(f['BodyFrame']):
-
+                
+                
                 if body_frame['isTracked']:
-
+                    
                     frame_body_joints = np.zeros((len(body_frame['skeleton']['rawGray'])+1,3),dtype='S30')
-
+                    
                     #frameID
                     frame_body_joints[0,0] = n_frame
                     #time
@@ -344,13 +345,11 @@ def read_kinect_joints_from_db(kinect_collection,time_interval):
 
                     joint_points.append(frame_body_joints)
 
-        #elif f['_id'] > end_period:
-            #break
-        elif f['_id'] < begin_period:
-            break
-
-
-    joint_points = joint_points[::-1]
+#        elif f['_id'] > end_period:
+#            break
+        #elif f['_id'] < begin_period:
+            #joint_points = joint_points[::-1]
+    
     print 'retrieved trajectory matrix size: ', np.array(joint_points).shape
     return joint_points
 
@@ -767,7 +766,7 @@ def get_bands_ID(db):
 
     band_ids= []
     for b in bands_collection:
-        print 'band in use: ', b['SensorID'],' uuid: ', b['PersonID']
+        #print 'band in use: ', b['SensorID'],' uuid: ', b['PersonID']
         band_ids.append([b['SensorID'],b['PersonID']])
 
     return band_ids
