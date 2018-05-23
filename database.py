@@ -671,24 +671,35 @@ def summary_MSBand(db, time_interval):
 
     out_hbr = dict()
     out_gsr = dict()
-    for key in d_all.keys():
+    
+    client = Connection('localhost', 27017)
+    dbIDs = client['local']['BandPersonIDs']
+    uuids = dbIDs.find()
+    
+    for key in uuids:
+        key = key["SensorID"]
+        
+        
+        try:
+            d = d_all[key]
 
-        d = d_all[key]
-
-        if key == '':
-            print 'Discarding {0} measurements with invalid key \'{1}\''.format(len(d), key)
-            continue
-
-        hr = []
-        gsr = []
-        for i in range(len(d)):
-
-            if d[i]['hr'] > 0 and d[i]['hrConfidence'] > 0:
-                hr.append(d[i]['hr'])
-
-            if d[i]['gsr'] > 0 and d[i]['gsr'] < 200000:
-                gsr.append(d[i]['gsr'])
-
+            if key == '':
+                print 'Discarding {0} measurements with invalid key \'{1}\''.format(len(d), key)
+                continue
+    
+            hr = []
+            gsr = []
+            for i in range(len(d)):
+    
+                if d[i]['hr'] > 0 and d[i]['hrConfidence'] > 0: ## threshold were 0 and 0
+                    hr.append(d[i]['hr'])
+    
+                if d[i]['gsr'] > 0 and d[i]['gsr'] < 200000: ##  1000000
+                    gsr.append(d[i]['gsr'])
+        except:
+            hr = []
+            gsr = []
+        
         hr = np.array(hr)
         gsr = np.array(gsr)
 
@@ -735,7 +746,7 @@ def summary_MSBand(db, time_interval):
 
 #personMSBand = "MSFT Band UPM f6:65"
 def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_activation, night_motion_as_activation,freezing_analysis,festination_analysis,\
- loss_of_balance_analisys, fall_down_analysis, nr_visit, confusion_analysis, lh_number, lhc_number, heart_rate_low, heart_rate_high):
+ loss_of_balance_analisys, fall_down_analysis, nr_visit, confusion_analysis, lh_number, lhc_number, heart_rate_low, heart_rate_high, gsr, hr):
 
     path_to_lambda = "C:\\libs3\\"
     client = Connection('localhost', 27017)
@@ -749,7 +760,8 @@ def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_a
         "loss_of_balance": loss_of_balance_analisys[uuid_person["SensorID"]], "fall_down": fall_down_analysis[uuid_person["SensorID"]], \
         "visit_bathroom": nr_visit[uuid_person["SensorID"]], "confusion_behaviour_detection": confusion_analysis[uuid_person["SensorID"]], \
         "leave_the_house": lh_number[uuid_person["SensorID"]], "leave_house_confused": lhc_number[uuid_person["SensorID"]], \
-        "heart_rate_low": heart_rate_low[uuid_person["SensorID"]], "heart_rate_high": heart_rate_high[uuid_person["SensorID"]]}
+        "heart_rate_low": heart_rate_low[uuid_person["SensorID"]], "heart_rate_high": heart_rate_high[uuid_person["SensorID"]],\
+        "gsr": gsr[uuid_person["SensorID"]], "hr": hr[uuid_person["SensorID"]]}
 
         date_in_title = time.strftime("%Y-%m-%d").split('-')
         filename_json = path_to_lambda + uuid_person["PersonID"] + '_' + date_in_title[0]+date_in_title[1]+date_in_title[2]+ '.json'
