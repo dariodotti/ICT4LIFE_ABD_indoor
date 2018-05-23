@@ -248,7 +248,7 @@ def main_nonrealtime_functionalities():
 
     avaliable_sensor = conf_file.get_available_sensors()
     end_period = datetime.strptime(day_to_analyze, '%Y-%m-%d %H:%M:%S')
-    begin_period = end_period - timedelta(day=1)#,
+    begin_period = end_period - timedelta(days=1)
     
     print 'requested period: ', begin_period,end_period
     
