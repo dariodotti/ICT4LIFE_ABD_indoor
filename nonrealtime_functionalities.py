@@ -24,46 +24,46 @@ def daily_motion_training(db,avaliable_sensor, time_interval):
 
         ##get data from database
         kinect_joints = database.read_kinect_joints_from_db(db.Kinect,time_interval)
-
+        #kinect_joints = kinect_joints[::-1]
+        
         if len(kinect_joints) <1:
             print '----- no data in time interval -----'
             return 0
 
         #extract features from kinect from each user
         bands_ids = database.get_bands_ID(db)
-        global_traj_features = kinect_features.feature_extraction_video_traj(kinect_joints, bands_ids, draw_joints_in_scene=0, realtime=0)
+        global_traj_features = kinect_features.feature_extraction_video_traj(kinect_joints, bands_ids, draw_joints_in_scene=1, realtime=0)
 
         kinect_motion_amount_band = {b[0]: None for b in bands_ids}
         
         ## compute analysis per band
         for i_b,b in enumerate(bands_ids):
-			if len(global_traj_features[1][i_b])>0:
+            if len(global_traj_features[1][i_b])>0:
+                #Get labels from clustering
+                #labels_cluster = classifiers.cluster_kmeans(global_traj_features[1],k=3)
 
-				#Get labels from clustering
-				#labels_cluster = classifiers.cluster_kmeans(global_traj_features[1],k=3)
+                #Train in supervised way a classifier with extracted features and labels
+                #model = classifiers.logistic_regression_train(global_traj_features[1],labels_cluster)
 
-				#Train in supervised way a classifier with extracted features and labels
-				#model = classifiers.logistic_regression_train(global_traj_features[1],labels_cluster)
-
-				#Save model in database
-				#database.save_classifier_model(model,filename='startPeriod_endPeriod')
+                #Save model in database
+                #database.save_classifier_model(model,filename='startPeriod_endPeriod')
 
 
-				##visulaization daily motion
-				#visualization.bar_plot_occupancy_selectedAreas_over_time(global_traj_features[0])
-				#visualization.bar_plot_motion_over_time(global_traj_features[1])
-				kinect_motion_amount = visualization.pie_plot_motion_day(global_traj_features[1][i_b],plot=0)
+                ##visulaization daily motion
+                #visualization.bar_plot_occupancy_selectedAreas_over_time(global_traj_features[0])
+                #visualization.bar_plot_motion_over_time(global_traj_features[1])
+                kinect_motion_amount = visualization.pie_plot_motion_day(global_traj_features[1][i_b],plot=0)
 
-				# normalize motion
-				total_motion = np.sum(kinect_motion_amount[0])
-				for n_k, k_data in enumerate(kinect_motion_amount[0]): kinect_motion_amount[0][n_k] = k_data / total_motion
+                # normalize motion
+                total_motion = np.sum(kinect_motion_amount[0])
+                for n_k, k_data in enumerate(kinect_motion_amount[0]): kinect_motion_amount[0][n_k] = k_data / total_motion
 
-				##make it dictionary
-				kinect_motion_amount_band[b[0]]= {'stationary': kinect_motion_amount[0][0],'slow_mov': kinect_motion_amount[0][1],'fast_mov': kinect_motion_amount[0][2]}
-				print b[0], {'stationary': kinect_motion_amount[0][0],'slow_mov': kinect_motion_amount[0][1],'fast_mov': kinect_motion_amount[0][2]}
-			else:
-				print 'no data from band: ', b[0]
-				kinect_motion_amount_band[b[0]] = {'stationary': -1,'slow_mov': -1,'fast_mov': -1}
+                ##make it dictionary
+                kinect_motion_amount_band[b[0]]= {'stationary': kinect_motion_amount[0][0],'slow_mov': kinect_motion_amount[0][1],'fast_mov': kinect_motion_amount[0][2]}
+                print b[0], {'stationary': kinect_motion_amount[0][0],'slow_mov': kinect_motion_amount[0][1],'fast_mov': kinect_motion_amount[0][2]}
+            else:
+                print 'no data from band: ', b[0]
+                kinect_motion_amount_band[b[0]] = {'stationary': -1,'slow_mov': -1,'fast_mov': -1}
     else:
         print '--------------- no data in the time interval ---------------------'
         kinect_motion_amount = 0
@@ -248,17 +248,19 @@ def main_nonrealtime_functionalities():
 
     avaliable_sensor = conf_file.get_available_sensors()
     end_period = datetime.strptime(day_to_analyze, '%Y-%m-%d %H:%M:%S')
-    begin_period = end_period - timedelta(days=1)
-
+    begin_period = end_period - timedelta(day=1)#,
+    
+    print 'requested period: ', begin_period,end_period
+    
     # Perform reidentification
-    date1 = begin_period.strftime('%Y-%m-%d %H:%M:%S').split(" ")
-    f1 = date1[0].split("-")
-    date2 = end_period.strftime('%Y-%m-%d %H:%M:%S').split(" ")
-    f2 = date2[0].split("-")
-
+    #date1 = begin_period.strftime('%Y-%m-%d %H:%M:%S').split(" ")
+    #f1 = date1[0].split("-")
+    #date2 = end_period.strftime('%Y-%m-%d %H:%M:%S').split(" ")
+    #f2 = date2[0].split("-")
+    
     ##json_data = {"init_hour": "10:38:00", "init_date": "1-03-2018", "fin_hour": "10:46:00", "fin_date": "1-03-2018"}
-    json_data = {"init_hour": date1[1], "init_date": f1[2]+"-"+f1[1]+"-"+f1[0], "fin_hour": date2[1], "fin_date": f2[2]+"-"+f2[1]+"-"+f2[0]}
-    r = requests.post("http://"+os.environ['IP_ICT4LIFE']+":8000/get_all_data/", json=json_data)
+    #json_data = {"init_hour": date1[1], "init_date": f1[2]+"-"+f1[1]+"-"+f1[0], "fin_hour": date2[1], "fin_date": f2[2]+"-"+f2[1]+"-"+f2[0]}
+    #r = requests.post("http://"+os.environ['IP_ICT4LIFE']+":8000/get_all_data/", json=json_data)
 
     #connect to the db
     db = database.connect_db('local')
@@ -276,10 +278,10 @@ def main_nonrealtime_functionalities():
 
     #apathy()
 
-    #freezing_analysis, festination_analysis = get_freezing_festination(db)
+    freezing_analysis, festination_analysis = get_freezing_festination(db)
 
     ##TODO: open the summarization file from the realtime activities and read the values for :
-    ## loss_of_balance_analisys, fall_down_analysis, confusion_analysis
+    ##loss_of_balance_analisys, fall_down_analysis, confusion_analysis
 
     # real-time event summarization
     rt_events_summary = database.summarize_events(db)
@@ -326,7 +328,7 @@ def main_nonrealtime_functionalities():
 
 
     # @todo: summarize HBR, GSR in case of confusion
-    # hr, gsr = database.summary_MSBand(db, ['2018-02-22 12:55:17', '2018-02-22 12:59:17'])
+    hr, gsr = database.summary_MSBand(db, [begin_period.strftime('%Y-%m-%d %H:%M:%S'), day_to_analyze])
 
     ##if we want the total number of visit we take it from the day and night motion
     # as_motion_for_json = {key: [] for key in day_motion_as_activation.keys()}
@@ -353,7 +355,9 @@ def main_nonrealtime_functionalities():
             lh_number,
             lhc_number,
             heart_rate_low,
-            heart_rate_high)
+            heart_rate_high,
+            gsr,
+            hr)
 
 
 if __name__ == '__main__':
