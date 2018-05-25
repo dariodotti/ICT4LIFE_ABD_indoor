@@ -292,6 +292,7 @@ def main_nonrealtime_functionalities():
     client = Connection('localhost', 27017)
     dbIDs = client['local']['BandPersonIDs']
     uuids = dbIDs.find()
+  
     jdata = {}
     for uuid_person in uuids:
     	jdata[uuid_person["SensorID"]] = 0
@@ -324,12 +325,13 @@ def main_nonrealtime_functionalities():
     lhc_number = jdata
     nr_visit = jdata
     day_motion_as_activation = jdata
-
-
+    
+    
 
     # @todo: summarize HBR, GSR in case of confusion
     hr, gsr = database.summary_MSBand(db, [begin_period.strftime('%Y-%m-%d %H:%M:%S'), day_to_analyze])
-
+    
+    
     ##if we want the total number of visit we take it from the day and night motion
     # as_motion_for_json = {key: [] for key in day_motion_as_activation.keys()}
     # for k in day_motion_as_activation.keys():

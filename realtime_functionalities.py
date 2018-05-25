@@ -123,6 +123,7 @@ def fall_down_manager(skeletons, jointsOfInterest, requestInterval, timeStart, f
 
         ts[i] = np.array(ts[i])
         data[i] = np.array(data[i])
+    
 
     # if there are enough data (>20 fps)
     if len(data) > 0 and data[0].shape[0] >= requestInterval * 13:#len(data) > 0 and data[0].shape[0] >= requestInterval * 20:
@@ -162,8 +163,8 @@ def fall_down_manager(skeletons, jointsOfInterest, requestInterval, timeStart, f
             # if a band is present
             if hold_max > -1:
                 if np.max(prediction[0, :, 1]) > 0.98 and \
-                                np.mean(prediction[0, :, 1]) > 0.25 and \
-                                hold_max > 2.3:
+                                np.mean(prediction[0, :, 1]) > 0.50 and \
+                                hold_max > 2.8:
 
                     # print '{0} | skeleton {1} | Fall: {2:02.1f} % | Fall Mean: {3:02.1f} %' \
                     # ' | Acc: {4} | Time: {5}ms'.\
@@ -229,8 +230,8 @@ def loss_of_balance_manager(skeletons, idSkeleton, stand, requestInterval, reque
             prediction = np.sum(np.sqrt(np.abs(skeletons[k])), axis=1)
 
             #print np.all(stand[k][:, 0] > 1), prediction
-            thres1 = 1
-            thres2 = 0.9
+            thres1 = 1.5
+            thres2 = 2.2#0.9
 
             if np.all(stand[k][:, 0] > thres1) and np.any(prediction > thres2):
                 print '{0} | skeleton {1} | Loss of Balance: {2:02.1f} % | Time: {3}ms'. \
@@ -253,26 +254,27 @@ def loss_of_balance_manager(skeletons, idSkeleton, stand, requestInterval, reque
     return results
 
 
-def heart_rate_manager(d_all_MSband, timeStart, requestInterval, thrLower, thrUpper, thrLength, results):
+def heart_rate_manager(d_all_MSband, timeStart, requestInterval, thrLower, thrUpper, thrLength, results): 
 
     for key in d_all_MSband.keys():
-
         d = d_all_MSband[key]
 
         hr = []
         for i in range(len(d)):
-            if d[i][9] > 0: # hr confidence
+            if d[i][9] > 0: # hr confidence, if it less then 0, the band is guessing the values
                 hr.append(d[i][8])
 
         hr = np.array(hr)
-
+        
         indLower = hr < thrLower
         indUpper = hr > thrUpper
+        
 
         if np.sum(indLower) > thrLength:
             results.append({'TimeStamp': timeStart,
                             'Event': 'HeartRateLow',
                             'Duration': int(requestInterval),
+                            'Value': np.mean(hr),
                             'Sensor': 'MSBand',
                             'SensorID': key,
                             'BodyID': -1})
@@ -281,6 +283,7 @@ def heart_rate_manager(d_all_MSband, timeStart, requestInterval, thrLower, thrUp
             results.append({'TimeStamp': timeStart,
                             'Event': 'HeartRateHigh',
                             'Duration': int(requestInterval),
+                            'Value': np.mean(hr),
                             'Sensor': 'MSBand',
                             'SensorID': key,
                             'BodyID': -1})
@@ -444,7 +447,7 @@ def load_models(jointsOfInterest, fps):
     model_fall_down = kinect_features.load_model_weights(model_fall_down,
                                                      abs_folder_path+'BOW_trained_data/fall_sk_10.50.hdf5')
 
-    file_calibaration = abs_folder_path+'BOW_trained_data/APM_KINECT_Calibration_12_9_17.txt'
+    file_calibaration = abs_folder_path+'BOW_trained_data/day_care_center_paris.txt'
 
     RT = np.genfromtxt(file_calibaration, delimiter=',')
     R = RT[0:3, :]
@@ -520,7 +523,8 @@ def main_realtime_functionalities():
         jointsOfInterest = [3, 20, 8, 9, 10, 4, 5, 6, 16, 17, 18, 12, 13, 14]
 
         model_fall_down, R_lb, T_lb = load_models(jointsOfInterest, fps)
-
+        
+        
         ## initialize bow hist for disorientation
         hist = np.zeros((1, len(key_labels)))
         bow_data = database.load_matrix_pickle(abs_folder_path+'BOW_trained_data/BOW/BOW_30_kmeans_16subject_2sec.txt')
@@ -597,17 +601,17 @@ def main_realtime_functionalities():
                             hasSkeleton[j] == False
 
                         if d[i][j] != []:
-							skeletons_4_falldown[idSkeleton[j] - 1].append([kinect_features.unix_time_ms(d[i][j][1]), np.array(d[i][j][7])])
-							coords.append(100 * np.array(d[i][j][7])[:, :-1])
-							confidence.append(np.array(d[i][j][7])[:, -1])
-							skeletons_4_lb[idSkeleton[j] - 1].append([d[i][j][3], d[i][j][4]])
-							skeletoncoords.append((np.matmul(R_lb.T, coords[-1].T) + T_lb.T).T)
-							skeletons_4_disorientation.append(np.array(d[i][j][8]))
+                            skeletons_4_falldown[idSkeleton[j] - 1].append([kinect_features.unix_time_ms(d[i][j][1]), np.array(d[i][j][7])])
+                            coords.append(100 * np.array(d[i][j][7])[:, :-1])
+                            confidence.append(np.array(d[i][j][7])[:, -1])
+                            skeletons_4_lb[idSkeleton[j] - 1].append([d[i][j][3], d[i][j][4]])
+                            skeletoncoords.append((np.matmul(R_lb.T, coords[-1].T) + T_lb.T).T)
+                            skeletons_4_disorientation.append(np.array(d[i][j][8]))
 
-
-							stand[idSkeleton[j] - 1].append(standing(np.array(skeletoncoords[-1]),
-																				 np.array(confidence[-1]), 0))
-
+    
+                            stand[idSkeleton[j] - 1].append(standing(np.array(skeletoncoords[-1]),
+    																				 np.array(confidence[-1]), 0))
+                
                 results = fall_down_manager(skeletons_4_falldown, jointsOfInterest, requestInterval, timeStart, fps,
                                             model_fall_down, d, key, results, d_all_MSband, idSkeleton)
 
@@ -640,10 +644,12 @@ def main_realtime_functionalities():
                         #get_token.real_report('MSFT Band UPM f6:65', event['Event'])
 
             results = []
-            results = heart_rate_manager(d_all_MSband, timeStart, requestInterval, 50, 120, 10, results)
+            results = heart_rate_manager(d_all_MSband, timeStart, requestInterval, 60, 100, 1, results) #50, 120, 10
 
+            #print len(results)
             # write results to db
             for event in results:
+                
                 # writing the results into the db
                 database.write_event(db, event)
                 # send live notification

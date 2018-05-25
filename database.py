@@ -7,6 +7,7 @@ import multiprocessing
 import time
 import json
 import pandas as pd
+from scipy import stats
 from lib_amazon_web_server import S3FileManager
 #from multiprocessing.dummy import Pool as threadPool
 
@@ -78,7 +79,17 @@ def read_events(db):
         # format events as timestamp, duration, sensor
         if e['reid'] != '':
             dt = datetime.strptime(e['TimeStamp'], "%Y-%m-%d %H:%M:%S")
-            events[e['Event']][e['reid']].append([dt, e['Duration'], e['Sensor']])
+            
+            ## Adding additional value for heart rate measurements
+            if e['Event'] == 'HeartRateHigh' or e['Event'] == 'HeartRateLow':
+                
+                try: # since the additional value has been added late, most of the DB istances do not have it
+                    events[e['Event']][e['reid']].append([dt, e['Duration'], e['Sensor'],e['Value']])
+                except:
+                    events[e['Event']][e['reid']].append([dt, e['Duration'], e['Sensor']])
+            
+            else:
+                events[e['Event']][e['reid']].append([dt, e['Duration'], e['Sensor']])
         else:
             no_reid_counter += 1
 
@@ -143,7 +154,17 @@ def summarize_events(db):
                 for i in range(n_events):
                     ts = event_summary[e_type][rID][i][0].strftime("%H:%M:%S")
                     dur = event_summary[e_type][rID][i][1]
+                    
+                    if e_type == 'HeartRateHigh' or e_type == 'HeartRateLow':
+                        
+                        try:# since the additional value has been added late, most of the DB istances do not have it
+                            v = event_summary[e_type][rID][i][3]
+                            e.append({"beginning": ts, "duration": str(dur), "value": str(v)})
+                        except:
+                            e.append({"beginning": ts, "duration": str(dur)})
+                            
                     e.append({"beginning": ts, "duration": str(dur)})
+                    
                 if n_events > 0:
                     output[rID][e_type] = dict([("number", n_events), ("event", e)])
 
@@ -679,7 +700,6 @@ def summary_MSBand(db, time_interval):
     for key in uuids:
         key = key["SensorID"]
         
-        
         try:
             d = d_all[key]
 
@@ -691,14 +711,15 @@ def summary_MSBand(db, time_interval):
             gsr = []
             for i in range(len(d)):
     
-                if d[i]['hr'] > 0 and d[i]['hrConfidence'] > 0: ## threshold were 0 and 0
+                if d[i]['hr'] > 0 and d[i]['hrConfidence'] > 0: ## confidence, if it is smaller than 0 the band is guessing
                     hr.append(d[i]['hr'])
     
-                if d[i]['gsr'] > 0 and d[i]['gsr'] < 200000: ##  1000000
+                if d[i]['gsr'] > 0 and d[i]['gsr'] < 1000000: ##  increase the threshold if too low
                     gsr.append(d[i]['gsr'])
         except:
             hr = []
             gsr = []
+        
         
         hr = np.array(hr)
         gsr = np.array(gsr)
@@ -706,6 +727,11 @@ def summary_MSBand(db, time_interval):
         result_hr = {'start': timeStart,
                      'end': timeEnd,
                      'n': 0,
+                     'mean':0,
+                     'mode':0,
+                     'median':0,
+                     'skew':0,
+                     'kurtosis':0,
                      'min': 0,
                      '25': 0,
                      '50': 0,
@@ -715,6 +741,11 @@ def summary_MSBand(db, time_interval):
         result_gsr = {'start': timeStart,
                      'end': timeEnd,
                      'n': 0,
+                     'mean':0,
+                     'mode':0,
+                     'median':0,
+                     'skew':0,
+                     'kurtosis':0,
                      'min': 0,
                      '25': 0,
                      '50': 0,
@@ -722,7 +753,13 @@ def summary_MSBand(db, time_interval):
                      'max': 0}
 
         if hr.shape[0] > 0:
+            
             result_hr['n'] = int(hr.shape[0])
+            result_hr['mean'] =np.mean(hr)
+            result_hr['mode'] = stats.mode(hr)[0][0]
+            result_hr['median'] = np.median(hr)
+            result_hr['skew'] = stats.skew(hr)
+            result_hr['kurtosis'] = stats.kurtosis(hr)
             result_hr['min'] = np.min(hr)
             result_hr['25'] = np.percentile(hr, 25)
             result_hr['50'] = np.percentile(hr, 50)
@@ -731,6 +768,11 @@ def summary_MSBand(db, time_interval):
 
         if gsr.shape[0] > 0:
             result_gsr['n'] = int(gsr.shape[0])
+            result_gsr['mean'] = np.mean(gsr)
+            result_gsr['mode'] =stats.mode(hr)[0][0]
+            result_gsr['median'] =np.median(hr)
+            result_gsr['skew'] =  stats.skew(hr)
+            result_gsr['kurtosis'] =stats.kurtosis(hr)
             result_gsr['min'] = np.min(gsr)
             result_gsr['25'] = np.percentile(gsr, 25)
             result_gsr['50'] = np.percentile(gsr, 50)

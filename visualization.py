@@ -242,13 +242,13 @@ def draw_joints_and_tracks(body_points, scene_patches, scene):
     line_color = (19, 19, 164)
 
     ##check patches are correct
-    for i_rect, rect in enumerate(scene_patches):
-        cv2.rectangle(scene, (int(rect.vertices[1][0]), int(rect.vertices[1][1])),
-                      (int(rect.vertices[3][0]), int(rect.vertices[3][1])), (0, 0, 0))
+#    for i_rect, rect in enumerate(scene_patches):
+#        cv2.rectangle(scene, (int(rect.vertices[1][0]), int(rect.vertices[1][1])),
+#                      (int(rect.vertices[3][0]), int(rect.vertices[3][1])), (0, 0, 0))
 
         ## write number of patch on img
-        cv2.putText(scene, str(i_rect), (int(rect.vertices[1][0]) + 10, int(rect.vertices[1][1]) + 20),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+#        cv2.putText(scene, str(i_rect), (int(rect.vertices[1][0]) + 10, int(rect.vertices[1][1]) + 20),
+#                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
 
     for n_frame, traj_body_joints in enumerate(body_points):
         # n_frame = n_frame+1402
@@ -259,7 +259,7 @@ def draw_joints_and_tracks(body_points, scene_patches, scene):
         temp_img = scene.copy()
 
         # draw joints
-        print n_frame
+        #print n_frame
 
         # first position skipped cause there are other info stored
         try:
