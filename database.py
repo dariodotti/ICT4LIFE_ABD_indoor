@@ -769,10 +769,10 @@ def summary_MSBand(db, time_interval):
         if gsr.shape[0] > 0:
             result_gsr['n'] = int(gsr.shape[0])
             result_gsr['mean'] = np.mean(gsr)
-            result_gsr['mode'] =stats.mode(hr)[0][0]
-            result_gsr['median'] =np.median(hr)
-            result_gsr['skew'] =  stats.skew(hr)
-            result_gsr['kurtosis'] =stats.kurtosis(hr)
+            result_gsr['mode'] = stats.mode(gsr)[0][0]
+            result_gsr['median'] =np.median(gsr)
+            result_gsr['skew'] =  stats.skew(gsr)
+            result_gsr['kurtosis'] =stats.kurtosis(gsr)
             result_gsr['min'] = np.min(gsr)
             result_gsr['25'] = np.percentile(gsr, 25)
             result_gsr['50'] = np.percentile(gsr, 50)
