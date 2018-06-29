@@ -672,6 +672,72 @@ def save_matrix_pickle(file, path):
     return file
 
 
+def summary_steps(db, time_interval, step_interval_mins):
+
+    """
+
+    Summarize the steps taken during a specific time period
+    every 'step_interval_mins' minutes
+
+
+    """
+
+    colMSBand = db.MSBand
+
+    timeStart = time_interval[0]
+    timeEnd = time_interval[1]
+
+    d_all = read_MSBand_from_db_asDict(collection=colMSBand,
+                                       time_interval=[timeStart, timeEnd],
+                                       session='')
+
+    out_steps = dict()
+
+    dbIDs = db.BandPersonIDs
+    uuids = dbIDs.find()
+    for key in uuids:
+        key = key["SensorID"]
+        try:
+            d = d_all[key]
+
+            if key == '':
+                print 'Discarding {0} measurements with invalid key \'{1}\''.format(len(d), key)
+                continue
+        except:
+            d = []
+
+        steps = []
+        c = 0
+        timeStart = ''
+        timeEnd   = ''
+        stepsStart = 0
+        stepsEnd   = 0
+        while c < len(d):
+
+            if d[c]['pedTotal'] > 0:
+
+                if timeStart == '':
+                    timeStart  = d[c]['pedTS']
+                    stepsStart = d[c]['pedTotal']
+                else:
+                    timeEnd  = d[c]['pedTS']
+                    stepsEnd = d[c]['pedTotal']
+                    elapsed_mins = (timeEnd - timeStart).total_seconds() / 60.
+                    if elapsed_mins >= step_interval_mins:
+                        steps.append([int(elapsed_mins), stepsEnd - stepsStart])
+                        timeStart = ''
+                        timeEnd   = ''
+                        stepsStart = 0
+                        stepsEnd   = 0
+
+            c += 1
+
+        out_steps[key] = steps
+
+
+    return out_steps
+
+
 def summary_MSBand(db, time_interval):
 
     """
