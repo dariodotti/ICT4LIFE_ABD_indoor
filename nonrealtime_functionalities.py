@@ -32,7 +32,7 @@ def daily_motion_training(db,avaliable_sensor, time_interval):
 
         #extract features from kinect from each user
         bands_ids = database.get_bands_ID(db)
-        global_traj_features = kinect_features.feature_extraction_video_traj(kinect_joints, bands_ids, draw_joints_in_scene=1, realtime=0)
+        global_traj_features = kinect_features.feature_extraction_video_traj(kinect_joints, bands_ids, draw_joints_in_scene=0, realtime=0)
 
         kinect_motion_amount_band = {b[0]: None for b in bands_ids}
         
@@ -253,13 +253,13 @@ def main_nonrealtime_functionalities():
     print 'requested period: ', begin_period,end_period
     
     # Perform reidentification
-    #date1 = begin_period.strftime('%Y-%m-%d %H:%M:%S').split(" ")
-    #f1 = date1[0].split("-")
-    #date2 = end_period.strftime('%Y-%m-%d %H:%M:%S').split(" ")
-    #f2 = date2[0].split("-")
+    date1 = begin_period.strftime('%Y-%m-%d %H:%M:%S').split(" ")
+    f1 = date1[0].split("-")
+    date2 = end_period.strftime('%Y-%m-%d %H:%M:%S').split(" ")
+    f2 = date2[0].split("-")
     
-    ##json_data = {"init_hour": "10:38:00", "init_date": "1-03-2018", "fin_hour": "10:46:00", "fin_date": "1-03-2018"}
-    #json_data = {"init_hour": date1[1], "init_date": f1[2]+"-"+f1[1]+"-"+f1[0], "fin_hour": date2[1], "fin_date": f2[2]+"-"+f2[1]+"-"+f2[0]}
+    #json_data = {"init_hour": "09:00:00", "init_date": "8-06-2018", "fin_hour": "11:00:00", "fin_date": "8-06-2018"}
+    json_data = {"init_hour": date1[1], "init_date": f1[2]+"-"+f1[1]+"-"+f1[0], "fin_hour": date2[1], "fin_date": f2[2]+"-"+f2[1]+"-"+f2[0]}
     #r = requests.post("http://"+os.environ['IP_ICT4LIFE']+":8000/get_all_data/", json=json_data)
 
     #connect to the db
@@ -269,8 +269,10 @@ def main_nonrealtime_functionalities():
     time_interval = [begin_period.strftime('%Y-%m-%d %H:%M:%S'),end_period.strftime('%Y-%m-%d %H:%M:%S')]
 
     kinect_motion_amount = daily_motion_training(db,avaliable_sensor,time_interval)
+    print("Motion amount")
 
     day_motion_as_activation = as_day_motion(db, avaliable_sensor,time_interval)
+    print("Day Motion")
 
     #night_motion_as_activation = as_night_motion(db, avaliable_sensor)
 
@@ -279,12 +281,14 @@ def main_nonrealtime_functionalities():
     #apathy()
 
     freezing_analysis, festination_analysis = get_freezing_festination(db)
+    print("Freezing Festination")
 
     ##TODO: open the summarization file from the realtime activities and read the values for :
     ##loss_of_balance_analisys, fall_down_analysis, confusion_analysis
 
     # real-time event summarization
     rt_events_summary = database.summarize_events(db)
+    print("RT events")
 
     # @todo: choose when to delete events from db
     #deleted = database.delete_events()
@@ -330,8 +334,12 @@ def main_nonrealtime_functionalities():
 
     # @todo: summarize HBR, GSR in case of confusion
     hr, gsr = database.summary_MSBand(db, [begin_period.strftime('%Y-%m-%d %H:%M:%S'), day_to_analyze])
+    print("HR GSR")
     
-    
+    # Summarize steps
+    steps = database.summary_steps(db, [begin_period.strftime('%Y-%m-%d %H:%M:%S'), day_to_analyze], 1440)
+    print("Steps")
+
     ##if we want the total number of visit we take it from the day and night motion
     # as_motion_for_json = {key: [] for key in day_motion_as_activation.keys()}
     # for k in day_motion_as_activation.keys():
@@ -359,7 +367,8 @@ def main_nonrealtime_functionalities():
             heart_rate_low,
             heart_rate_high,
             gsr,
-            hr)
+            hr,
+            steps)
 
 
 if __name__ == '__main__':

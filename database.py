@@ -10,7 +10,7 @@ import pandas as pd
 from scipy import stats
 from lib_amazon_web_server import S3FileManager
 #from multiprocessing.dummy import Pool as threadPool
-
+import re
 
 import pandas as pd
 from datetime import datetime, timedelta
@@ -29,14 +29,36 @@ def connect_db(name_db, ip='localhost'):
     return db
 
 
-def read_events(db):
+def read_events(db, time_interval):
 
     # The following assumptions are made for the captured events
     #   - each event is associated with only one sensor (e.g., LossOfBalance <=> Kinect)
     #   - each event is registered only once (2 Kinects cannot report the same LossOfBalance event)
     #   - the events are deleted at the end of each day
 
-    r = db.rtevents.find({}).sort('TimeStamp', 1) # 1 = ASCENDING
+    if time_interval == None:
+        r = db.rtevents.find({}).sort('TimeStamp', 1) # 1 = ASCENDING
+    else:
+        assert len(time_interval) == 2, 'Two dates are required'
+        d1 = datetime.strptime(time_interval[0], '%Y-%m-%d')
+        d2 = datetime.strptime(time_interval[1], '%Y-%m-%d')
+        assert d1 <= d2, 'The starting date cannot be greater than the ending date'
+
+        dates = [d1]
+        while d1 < d2:
+            d1 = d1 + timedelta(days=1)
+            dates.append(d1)
+
+        dates = [datetime.strftime(d, '%Y-%m-%d') for d in dates]
+
+        s = ''
+        for d in dates:
+            s = s + '|^' + d
+
+        s = s[1:]
+        regex = re.compile(s)
+
+        r = db.rtevents.find({'TimeStamp': regex}).sort('TimeStamp', 1) # 1 = ASCENDING
 
     events = dict()
     no_reid_counter = 0
@@ -52,8 +74,8 @@ def read_events(db):
                                              time_interval=[timeStart, timeEnd],
                                              session='',
                                              skeletonType=['filtered','rawGray'],
-                                             exclude_columns=['ColorImage', 'DepthImage',
-                                                              'InfraImage', 'BodyImage'])
+                                             exclude_columns=['ColorImage','DepthImage',
+                                                              'InfraImage','BodyImage'])
             reid = ''
             if e['SensorID'] in d_all.keys():
                 d = d_all[e['SensorID']]
@@ -79,22 +101,21 @@ def read_events(db):
         # format events as timestamp, duration, sensor
         if e['reid'] != '':
             dt = datetime.strptime(e['TimeStamp'], "%Y-%m-%d %H:%M:%S")
-            
+
             ## Adding additional value for heart rate measurements
             if e['Event'] == 'HeartRateHigh' or e['Event'] == 'HeartRateLow':
-                
+
                 try: # since the additional value has been added late, most of the DB istances do not have it
-                    events[e['Event']][e['reid']].append([dt, e['Duration'], e['Sensor'],e['Value']])
+                    events[e['Event']][e['reid']].append([dt, e['Duration'],e['Sensor'],e['Value']])
                 except:
-                    events[e['Event']][e['reid']].append([dt, e['Duration'], e['Sensor']])
-            
+                    events[e['Event']][e['reid']].append([dt, e['Duration'],e['Sensor']])
+
             else:
                 events[e['Event']][e['reid']].append([dt, e['Duration'], e['Sensor']])
         else:
             no_reid_counter += 1
 
     print 'Found {0} events that cannot be matched to a person (no re-id)'.format(no_reid_counter)
-
 
     return events
 
@@ -111,13 +132,13 @@ def write_exercise_evaluation(db, event):
     c.insert_one(event)
 
 
-def summarize_events(db):
+def summarize_events(db, time_interval=None):
 
     # The following assumptions are made for the captured events
     #   - if timestamp + duration of event(t) = timestamp of event(t+1),
     #     the 2 events are combined into 1
 
-    events = read_events(db)
+    events = read_events(db, time_interval)
 
     # join subsequent events together
     for e_type in events.keys(): # for each event type
@@ -154,20 +175,19 @@ def summarize_events(db):
                 for i in range(n_events):
                     ts = event_summary[e_type][rID][i][0].strftime("%H:%M:%S")
                     dur = event_summary[e_type][rID][i][1]
-                    
+
                     if e_type == 'HeartRateHigh' or e_type == 'HeartRateLow':
-                        
+
                         try:# since the additional value has been added late, most of the DB istances do not have it
                             v = event_summary[e_type][rID][i][3]
-                            e.append({"beginning": ts, "duration": str(dur), "value": str(v)})
+                            e.append({"beginning": ts, "duration": str(dur),"value": str(v)})
                         except:
                             e.append({"beginning": ts, "duration": str(dur)})
-                            
+
                     e.append({"beginning": ts, "duration": str(dur)})
-                    
+
                 if n_events > 0:
                     output[rID][e_type] = dict([("number", n_events), ("event", e)])
-
 
     return output
 
@@ -249,6 +269,10 @@ def read_kinect_data_from_db(collection, time_interval, session, skeletonType, e
             all_data[f['SensorID']] = []
 
         all_joints = [[], [], [], [], [], []]
+
+        if 'BodyFrame' not in f.keys():
+            continue
+
         for n_id, body_frame in enumerate(f['BodyFrame']):
 
             if body_frame['isTracked']:
@@ -328,7 +352,6 @@ def read_kinect_joints_from_db(kinect_collection,time_interval):
     #frame_with_joints =kinect_collection.find().sort([('_id',pymongo.DESCENDING)])#pymongo.ASCENDING
     frame_with_joints = kinect_collection.find({'_id':{'$lt': end_period, '$gte': begin_period}})
     
-
     joint_points = []
 
     for n_frame,f in enumerate(frame_with_joints):
@@ -724,7 +747,7 @@ def summary_steps(db, time_interval, step_interval_mins):
                     stepsEnd = d[c]['pedTotal']
                     elapsed_mins = (timeEnd - timeStart).total_seconds() / 60.
                     if elapsed_mins >= step_interval_mins:
-                        steps.append([int(elapsed_mins), stepsEnd - stepsStart])
+                        steps.append([int(elapsed_mins), int(stepsEnd) - int(stepsStart)])
                         timeStart = ''
                         timeEnd   = ''
                         stepsStart = 0
@@ -821,29 +844,29 @@ def summary_MSBand(db, time_interval):
         if hr.shape[0] > 0:
             
             result_hr['n'] = int(hr.shape[0])
-            result_hr['mean'] =np.mean(hr)
-            result_hr['mode'] = stats.mode(hr)[0][0]
-            result_hr['median'] = np.median(hr)
-            result_hr['skew'] = stats.skew(hr)
-            result_hr['kurtosis'] = stats.kurtosis(hr)
-            result_hr['min'] = np.min(hr)
-            result_hr['25'] = np.percentile(hr, 25)
-            result_hr['50'] = np.percentile(hr, 50)
-            result_hr['75'] = np.percentile(hr, 75)
-            result_hr['max'] = np.max(hr)
+            result_hr['mean'] = float(np.mean(hr))
+            result_hr['mode'] = float(stats.mode(hr)[0][0])
+            result_hr['median'] = float(np.median(hr))
+            result_hr['skew'] = float(stats.skew(hr))
+            result_hr['kurtosis'] = float(stats.kurtosis(hr))
+            result_hr['min'] = float(np.min(hr))
+            result_hr['25'] = float(np.percentile(hr, 25))
+            result_hr['50'] = float(np.percentile(hr, 50))
+            result_hr['75'] = float(np.percentile(hr, 75))
+            result_hr['max'] = float(np.max(hr))
 
         if gsr.shape[0] > 0:
             result_gsr['n'] = int(gsr.shape[0])
-            result_gsr['mean'] = np.mean(gsr)
-            result_gsr['mode'] = stats.mode(gsr)[0][0]
-            result_gsr['median'] =np.median(gsr)
-            result_gsr['skew'] =  stats.skew(gsr)
-            result_gsr['kurtosis'] =stats.kurtosis(gsr)
-            result_gsr['min'] = np.min(gsr)
-            result_gsr['25'] = np.percentile(gsr, 25)
-            result_gsr['50'] = np.percentile(gsr, 50)
-            result_gsr['75'] = np.percentile(gsr, 75)
-            result_gsr['max'] = np.max(gsr)
+            result_gsr['mean'] = float(np.mean(gsr))
+            result_gsr['mode'] = float(stats.mode(gsr)[0][0])
+            result_gsr['median'] = float(np.median(gsr))
+            result_gsr['skew'] =  float(stats.skew(gsr))
+            result_gsr['kurtosis'] = float(stats.kurtosis(gsr))
+            result_gsr['min'] = float(np.min(gsr))
+            result_gsr['25'] = float(np.percentile(gsr, 25))
+            result_gsr['50'] = float(np.percentile(gsr, 50))
+            result_gsr['75'] = float(np.percentile(gsr, 75))
+            result_gsr['max'] = float(np.max(gsr))
 
         out_hbr[key] = result_hr
         out_gsr[key] = result_gsr
@@ -854,7 +877,7 @@ def summary_MSBand(db, time_interval):
 
 #personMSBand = "MSFT Band UPM f6:65"
 def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_activation, night_motion_as_activation,freezing_analysis,festination_analysis,\
- loss_of_balance_analisys, fall_down_analysis, nr_visit, confusion_analysis, lh_number, lhc_number, heart_rate_low, heart_rate_high, gsr, hr):
+ loss_of_balance_analisys, fall_down_analysis, nr_visit, confusion_analysis, lh_number, lhc_number, heart_rate_low, heart_rate_high, gsr, hr, steps):
 
     path_to_lambda = "C:\\libs3\\"
     client = Connection('localhost', 27017)
@@ -869,10 +892,11 @@ def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_a
         "visit_bathroom": nr_visit[uuid_person["SensorID"]], "confusion_behaviour_detection": confusion_analysis[uuid_person["SensorID"]], \
         "leave_the_house": lh_number[uuid_person["SensorID"]], "leave_house_confused": lhc_number[uuid_person["SensorID"]], \
         "heart_rate_low": heart_rate_low[uuid_person["SensorID"]], "heart_rate_high": heart_rate_high[uuid_person["SensorID"]],\
-        "gsr": gsr[uuid_person["SensorID"]], "hr": hr[uuid_person["SensorID"]]}
+        "gsr": gsr[uuid_person["SensorID"]], "hr": hr[uuid_person["SensorID"]], "steps": steps[uuid_person["SensorID"]]}
 
         date_in_title = time.strftime("%Y-%m-%d").split('-')
         filename_json = path_to_lambda + uuid_person["PersonID"] + '_' + date_in_title[0]+date_in_title[1]+date_in_title[2]+ '.json'
+        #filename_json = path_to_lambda + uuid_person["PersonID"] + '_20180601.json'
         with open(filename_json, 'w') as outfile:
             json.dump(final_sumarization, outfile)
 
