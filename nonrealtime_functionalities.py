@@ -260,7 +260,7 @@ def main_nonrealtime_functionalities():
     
     #json_data = {"init_hour": "09:00:00", "init_date": "8-06-2018", "fin_hour": "11:00:00", "fin_date": "8-06-2018"}
     json_data = {"init_hour": date1[1], "init_date": f1[2]+"-"+f1[1]+"-"+f1[0], "fin_hour": date2[1], "fin_date": f2[2]+"-"+f2[1]+"-"+f2[0]}
-    #r = requests.post("http://"+os.environ['IP_ICT4LIFE']+":8000/get_all_data/", json=json_data)
+    r = requests.post("http://"+os.environ['IP_ICT4LIFE']+":8000/get_all_data/", json=json_data)
 
     #connect to the db
     db = database.connect_db('local')
