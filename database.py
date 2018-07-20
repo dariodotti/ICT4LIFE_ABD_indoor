@@ -11,9 +11,11 @@ from scipy import stats
 from lib_amazon_web_server import S3FileManager
 #from multiprocessing.dummy import Pool as threadPool
 import re
+from time import mktime as mktime
 
 import pandas as pd
 from datetime import datetime, timedelta
+from scipy.signal import butter, filtfilt
 
 
 begin_period = ''
@@ -695,6 +697,211 @@ def save_matrix_pickle(file, path):
     return file
 
 
+def convert_timestamp(ts):
+    tsD = ts.split(" ")
+    tsH = tsD[1].split(".")
+    tsHs = tsH[0].split(":")
+    tsY = tsD[0].split("-")
+    if len(tsH) == 2:
+        milis = float("0."+tsH[1])
+    else:
+        milis = 0.0
+    fechaIn = datetime(int(tsY[0]), int(tsY[1]), int(tsY[2]), 0, 0)
+    fechaIn = mktime(datetime.timetuple(fechaIn))
+    dateFin = fechaIn+int(tsHs[0])*60*60+int(tsHs[1])*60+int(tsHs[2])+milis
+    return dateFin
+
+def butter_lowpass_filter(data, cutoff, fs, order=5):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = butter(order, normal_cutoff, btype='low', analog=False)
+    #y = lfilter(b, a, data)
+    y = filtfilt(b, a, data)
+    return y
+
+def extract_one_sensor(db, time_interval):
+    imuData = read_data_from_db_tomas(collection=db.MSBand, time_interval=[time_interval[0], time_interval[1]], session='')
+    oneImuData = []
+    for data in imuData:
+        if data['Contact']['Value'] == False:
+            continue
+        oneImuData.append([[data["Acceleration"]["X"],data["Acceleration"]["Y"],data["Acceleration"]["Z"]],convert_timestamp(str(data["_id"]))])
+    return oneImuData
+
+def learning_count_jerks_pace(imuData):
+    # Filter requirements.
+    order = 5
+    fs = 90.0       # sample rate, Hz
+    cutoff = 3 # desired cutoff frequency of the filter, Hz
+
+    grav = 9.80665
+
+    accelData = []
+    timestamps = []
+    accelDataNoFilter = []
+    for i in range(0,len(imuData)):
+        accelData.append([np.sqrt(imuData[i][0][0]**2+imuData[i][0][1]**2+imuData[i][0][2]**2),imuData[i][1]])
+        accelDataNoFilter.append(np.sqrt(imuData[i][0][0]**2+imuData[i][0][1]**2+imuData[i][0][2]**2))
+        timestamps.append(imuData[i][1])
+
+    accelDataFilter = butter_lowpass_filter(accelDataNoFilter, cutoff, fs, order)
+
+    for i in range(0,len(accelDataFilter)):
+        accelData[i][0] = accelDataFilter[i]
+    #show_graphs_filter(accelDataNoFilter, timestamps, cutoff, fs, order)
+
+    PACE = 0.5
+    GRAVITY = 0.98
+    last_state = None
+    current_state = None
+    last_peak = None
+    last_trough = None
+    peaks = []
+    troughs = []
+    middles = []
+    zero = GRAVITY
+    jerk_mean = 0.3
+    pace_mean = PACE
+    alpha = 0.125
+    jerk_dev = 0.125
+    pace_dev = 0.1 #pace_mean/0.4
+    beta = 0.125
+    meta = []
+
+    for i in range(0,len(accelData)):
+        if accelData[i][0] < zero and last_state is not None:
+            current_state = 'trough'
+        elif accelData[i][0] > zero:
+            current_state = 'peak'
+        if current_state is not last_state:
+            if last_state is 'trough':
+                if last_peak and last_trough:
+                    jerk =  last_peak['val'] - last_trough['val']
+                    if jerk > jerk_mean - 4*jerk_dev:
+                        pace = pace_mean
+                        if len(peaks) > 1 :
+                            pace = peaks[-1]['ts']-peaks[-2]['ts']
+                        if pace > pace_mean - 3 * pace_dev and  pace < pace_mean + 5 * pace_dev:
+                            troughs.append(last_trough)
+                            jerk_dev = abs(jerk_mean - jerk) * beta + jerk_dev * (1 - beta)
+                            jerk_mean = jerk * alpha + jerk_mean * (1- alpha)
+                            pace_dev = abs(pace_mean - pace) * beta + pace_dev * (1- beta)
+                            pace_mean = pace * alpha + pace_mean * (1- alpha)
+                            meta.append([accelData[i][1], jerk_mean, jerk_dev, pace_mean, pace_dev])
+                            first_event = min(last_peak['index'], last_trough['index'])
+                            second_event = max(last_peak['index'], last_trough['index'])
+                            last_index = int((second_event - first_event)/2) + first_event
+                        #else:
+                            #print "PACE FAIL", pace_mean, pace
+                    #else:
+                        #print "STEP FAIL"
+                last_trough = None
+                last_peak = None
+            elif last_state is 'peak':
+                peaks.append(last_peak)
+
+        if current_state is 'trough' and (last_trough is None or accelData[i][0] < last_trough["val"]):
+            last_trough = {"ts": accelData[i][1], "val": accelData[i][0], "index": i, "min_max":"min"}
+        elif current_state is 'peak' and (last_peak is None or accelData[i][0] > last_peak["val"]):
+            last_peak = {"ts": accelData[i][1], "val": accelData[i][0], "index": i, "min_max":"max"}
+
+        last_state = current_state
+
+    return np.array(peaks), np.array(troughs), np.array(accelDataFilter), np.array(timestamps)
+
+def vel_estimator(peaks,troughs,r,timestamps):
+    peak_ts =  [peak['ts'] for peak in peaks]
+    peak_val =  [peak['val'] for peak in peaks]
+    peak_ind =  [peak['index'] for peak in peaks]
+    trough_ts =  [trough['ts'] for trough in troughs]
+    trough_val =  [trough['val'] for trough in troughs]
+    trough_ind =  [trough['index'] for trough in troughs]
+    r = r.tolist()
+    timestamps = timestamps.tolist()
+
+    k = 0.38
+    indP = 0
+    indT = 0
+    pico = [0,0]
+    subpic = [0,0]
+    picDet = False
+    subir = False
+    velEst = []
+    velDef = 80
+    n_steps = 0
+
+    for i in range(0,len(r)):
+        addVel = False
+        try:
+            if i == peak_ind[indP] and picDet == False:
+                pico = [peak_val[indP],peak_ts[indP]]
+                picDet = True
+                indP += 1
+            elif i == trough_ind[indT] and picDet == True:
+                subpic = [trough_val[indT],trough_ts[indT]]
+                picDet = False
+                indT += 1
+
+            if pico[0] != 0.0 and subpic[0] != 0.0:
+                step = k*(pico[0]-subpic[0])**0.25
+                if subir == False:
+                    vel = step/(subpic[1]-pico[1])*100
+                    velEst.append([vel,timestamps[i]])
+                    n_steps += 1
+                    addVel = True
+                else:
+                    vel = step/(pico[1]-subpic[1])*100
+                    velEst.append([vel,timestamps[i]])
+                    n_steps += 1
+                    addVel = True
+                if subir == False:
+                    pico = [0,0]
+                    subir = True
+                else:
+                    subpic = [0,0]
+                    subir = False
+            else:
+                addVel = True
+                if len(velEst) == 0:
+                    velEst.append([velDef,timestamps[i]])
+                else:
+                    velEst.append([velEst[-1][0],timestamps[i]])
+
+            if i>peak_ind[indP] or i>trough_ind[indT]:
+                indP += 1
+                indT += 1
+                picDet = False
+                pico = [0,0]
+                subPic = [0,0]
+                subir = False
+
+        except:
+            if addVel == False:
+                if len(velEst) == 0:
+                    velEst.append([velDef,timestamps[i]])
+                else:
+                    velEst.append([velEst[-1][0],timestamps[i]])
+            continue
+
+    alpha = 0.9
+    for n in range(len(velEst)):
+        if n != 0:
+            velEst[n][0] = (1-alpha)*velEst[n][0]+alpha*velEst[n-1][0]  
+
+    return velEst, n_steps
+
+
+def steps_accelerometer_method(db, time_interval):
+    print("Steps alternative method")
+
+    imuDataAcc = extract_one_sensor(db, time_interval)
+    peaks, troughs, accelDataFilter, timestamps = learning_count_jerks_pace(imuDataAcc)
+    vel, n_steps = vel_estimator(peaks,troughs,accelDataFilter,timestamps)
+    print(n_steps)
+
+    return n_steps
+
+
 def summary_steps(db, time_interval, step_interval_mins):
 
     """
@@ -754,6 +961,11 @@ def summary_steps(db, time_interval, step_interval_mins):
                         stepsEnd   = 0
 
             c += 1
+
+        if len(steps) == 0:
+            steps = steps_accelerometer_method(db, time_interval)
+        else:
+            steps = steps[0][1]
 
         out_steps[key] = steps
 
@@ -885,11 +1097,48 @@ def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_a
     uuids = dbIDs.find()
 
     for uuid_person in uuids:
-        final_sumarization = {'patientID': uuid_person["PersonID"],"date": time.strftime("%Y-%m-%d"),"daily_motion": kinect_motion_amount[uuid_person["SensorID"]], \
+
+        # Check 0 values to put the correct format
+        try:
+            val_kma = kinect_motion_amount[uuid_person["SensorID"]]
+        except:
+            val_kma = {"slow_mov": -1, "stationary": -1, "fast_mov": -1}
+
+        if day_motion_as_activation[uuid_person["SensorID"]] == 0:
+            day_motion_as_activation[uuid_person["SensorID"]] = {"toilet": [], "entrance": [],"bedroom": []}
+
+        if night_motion_as_activation[uuid_person["SensorID"]] == 0:
+            night_motion_as_activation[uuid_person["SensorID"]] = {"toilet": [], "entrance": [],"bedroom": []}
+
+        if heart_rate_low[uuid_person["SensorID"]] == 0:
+            heart_rate_low[uuid_person["SensorID"]] = []
+
+        if heart_rate_high[uuid_person["SensorID"]] == 0:
+            heart_rate_high[uuid_person["SensorID"]] = []
+
+        if festination_analysis[uuid_person["SensorID"]] == 0:
+            festination_analysis[uuid_person["SensorID"]] = []
+
+        if freezing_analysis[uuid_person["SensorID"]] == 0:
+            freezing_analysis[uuid_person["SensorID"]] = []
+
+        if fall_down_analysis[uuid_person["SensorID"]] == 0:
+            fall_down_analysis[uuid_person["SensorID"]] = []
+
+        if confusion_analysis[uuid_person["SensorID"]] == 0:
+            confusion_analysis[uuid_person["SensorID"]] = []
+
+        if nr_visit[uuid_person["SensorID"]] == 0:
+            nr_visit[uuid_person["SensorID"]] = []
+
+        if loss_of_balance_analisys[uuid_person["SensorID"]] == 0:
+            loss_of_balance_analisys[uuid_person["SensorID"]] = []
+
+        final_sumarization = {'patientID': uuid_person["PersonID"],"date": time.strftime("%Y-%m-%d"),"daily_motion": val_kma, \
         "as_day_motion": day_motion_as_activation[uuid_person["SensorID"]], "as_night_motion": night_motion_as_activation[uuid_person["SensorID"]], \
         "freezing": freezing_analysis[uuid_person["SensorID"]], "festination": festination_analysis[uuid_person["SensorID"]], \
         "loss_of_balance": loss_of_balance_analisys[uuid_person["SensorID"]], "fall_down": fall_down_analysis[uuid_person["SensorID"]], \
-        "visit_bathroom": nr_visit[uuid_person["SensorID"]], "confusion_behaviour_detection": confusion_analysis[uuid_person["SensorID"]], \
+        "visit_bathroom": nr_visit[uuid_person["SensorID"]], "confusion_behavior_detection": confusion_analysis[uuid_person["SensorID"]], \
         "leave_the_house": lh_number[uuid_person["SensorID"]], "leave_house_confused": lhc_number[uuid_person["SensorID"]], \
         "heart_rate_low": heart_rate_low[uuid_person["SensorID"]], "heart_rate_high": heart_rate_high[uuid_person["SensorID"]],\
         "gsr": gsr[uuid_person["SensorID"]], "hr": hr[uuid_person["SensorID"]], "steps": steps[uuid_person["SensorID"]]}

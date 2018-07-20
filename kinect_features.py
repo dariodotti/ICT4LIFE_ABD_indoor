@@ -471,16 +471,15 @@ def feature_extraction_video_traj(skeleton_data, bands_ids, draw_joints_in_scene
                 ##reliability method
                 #measure_joints_accuracy(skeleton_data)
                 #print skeleton_data[0]
-    
                 if draw_joints_in_scene: vis.draw_joints_and_tracks(skeleton_data_current_sk, list_poly, my_room)
             
                 ## split considered period is small time intervals
                 hours = 0
                 minutes = 0
                 seconds = 2
-
                 skeleton_data_in_time_slices = org_data_in_timeIntervals(skeleton_data_current_sk, [hours,minutes,seconds])
                 #print skeleton_data_in_time_slices[0][0][0],skeleton_data_in_time_slices[len(skeleton_data_in_time_slices)-1][0][0]
+                print("eiiis3")
                 HOT_data.append(histograms_of_oriented_trajectories(list_poly, skeleton_data_in_time_slices))
             else: 
                 HOT_data.append([])

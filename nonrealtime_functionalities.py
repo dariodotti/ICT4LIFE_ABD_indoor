@@ -287,7 +287,8 @@ def main_nonrealtime_functionalities():
     ##loss_of_balance_analisys, fall_down_analysis, confusion_analysis
 
     # real-time event summarization
-    rt_events_summary = database.summarize_events(db)
+    time_interval_rt = [begin_period.strftime('%Y-%m-%d'),end_period.strftime('%Y-%m-%d')]
+    rt_events_summary = database.summarize_events(db, time_interval_rt)
     print("RT events")
 
     # @todo: choose when to delete events from db
