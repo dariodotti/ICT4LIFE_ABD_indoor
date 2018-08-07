@@ -406,7 +406,7 @@ def read_ambient_sensor_from_db(binary_collection,time_interval):
     end_period = datetime.strptime(time_interval[1], '%Y-%m-%d %H:%M:%S')
 
     binary_data = []
-    for data in binary_collection.find({}):
+    for data in binary_collection.find({'_id':{'$lt': end_period, '$gte': begin_period}}):
 
         if begin_period <= data['_id'] <= end_period:
             binary_data.append(data['Value'])
@@ -1095,46 +1095,45 @@ def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_a
     client = Connection('localhost', 27017)
     dbIDs = client['local']['BandPersonIDs']
     uuids = dbIDs.find()
-
     for uuid_person in uuids:
 
         # Check 0 values to put the correct format
-        try:
-            val_kma = kinect_motion_amount[uuid_person["SensorID"]]
-        except:
-            val_kma = {"slow_mov": -1, "stationary": -1, "fast_mov": -1}
+#        try:
+#            val_kma = kinect_motion_amount[uuid_person["SensorID"]]
+#        except:
+#            val_kma = {"slow_mov": -1, "stationary": -1, "fast_mov": -1}
+#
+#        if day_motion_as_activation[uuid_person["SensorID"]] == 0:
+#            day_motion_as_activation[uuid_person["SensorID"]] = {"toilet": [], "entrance": [],"bedroom": []}
+#
+#        if night_motion_as_activation[uuid_person["SensorID"]] == 0:
+#            night_motion_as_activation[uuid_person["SensorID"]] = {"toilet": [], "entrance": [],"bedroom": []}
+#
+#        if heart_rate_low[uuid_person["SensorID"]] == 0:
+#            heart_rate_low[uuid_person["SensorID"]] = []
+#
+#        if heart_rate_high[uuid_person["SensorID"]] == 0:
+#            heart_rate_high[uuid_person["SensorID"]] = []
+#
+#        if festination_analysis[uuid_person["SensorID"]] == 0:
+#            festination_analysis[uuid_person["SensorID"]] = []
+#
+#        if freezing_analysis[uuid_person["SensorID"]] == 0:
+#            freezing_analysis[uuid_person["SensorID"]] = []
+#
+#        if fall_down_analysis[uuid_person["SensorID"]] == 0:
+#            fall_down_analysis[uuid_person["SensorID"]] = []
+#
+#        if confusion_analysis[uuid_person["SensorID"]] == 0:
+#            confusion_analysis[uuid_person["SensorID"]] = []
+#
+#        if nr_visit[uuid_person["SensorID"]] == 0:
+#            nr_visit[uuid_person["SensorID"]] = []
+#
+#        if loss_of_balance_analisys[uuid_person["SensorID"]] == 0:
+#            loss_of_balance_analisys[uuid_person["SensorID"]] = []
 
-        if day_motion_as_activation[uuid_person["SensorID"]] == 0:
-            day_motion_as_activation[uuid_person["SensorID"]] = {"toilet": [], "entrance": [],"bedroom": []}
-
-        if night_motion_as_activation[uuid_person["SensorID"]] == 0:
-            night_motion_as_activation[uuid_person["SensorID"]] = {"toilet": [], "entrance": [],"bedroom": []}
-
-        if heart_rate_low[uuid_person["SensorID"]] == 0:
-            heart_rate_low[uuid_person["SensorID"]] = []
-
-        if heart_rate_high[uuid_person["SensorID"]] == 0:
-            heart_rate_high[uuid_person["SensorID"]] = []
-
-        if festination_analysis[uuid_person["SensorID"]] == 0:
-            festination_analysis[uuid_person["SensorID"]] = []
-
-        if freezing_analysis[uuid_person["SensorID"]] == 0:
-            freezing_analysis[uuid_person["SensorID"]] = []
-
-        if fall_down_analysis[uuid_person["SensorID"]] == 0:
-            fall_down_analysis[uuid_person["SensorID"]] = []
-
-        if confusion_analysis[uuid_person["SensorID"]] == 0:
-            confusion_analysis[uuid_person["SensorID"]] = []
-
-        if nr_visit[uuid_person["SensorID"]] == 0:
-            nr_visit[uuid_person["SensorID"]] = []
-
-        if loss_of_balance_analisys[uuid_person["SensorID"]] == 0:
-            loss_of_balance_analisys[uuid_person["SensorID"]] = []
-
-        final_sumarization = {'patientID': uuid_person["PersonID"],"date": time.strftime("%Y-%m-%d"),"daily_motion": val_kma, \
+        final_sumarization = {'patientID': uuid_person["PersonID"],"date": time.strftime("%Y-%m-%d"),"daily_motion": kinect_motion_amount[uuid_person["SensorID"]], \
         "as_day_motion": day_motion_as_activation[uuid_person["SensorID"]], "as_night_motion": night_motion_as_activation[uuid_person["SensorID"]], \
         "freezing": freezing_analysis[uuid_person["SensorID"]], "festination": festination_analysis[uuid_person["SensorID"]], \
         "loss_of_balance": loss_of_balance_analisys[uuid_person["SensorID"]], "fall_down": fall_down_analysis[uuid_person["SensorID"]], \

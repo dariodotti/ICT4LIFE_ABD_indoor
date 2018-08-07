@@ -300,7 +300,7 @@ def main_nonrealtime_functionalities():
   
     jdata = {}
     for uuid_person in uuids:
-    	jdata[uuid_person["SensorID"]] = 0
+    	jdata[uuid_person["SensorID"]] = []
 
     jdata_lob = copy.deepcopy(jdata)
     jdata_fall = copy.deepcopy(jdata)
