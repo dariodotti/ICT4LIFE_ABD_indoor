@@ -22,15 +22,15 @@ cube_size = (kinect_max_distance-kinect_min_distance)/3
 
 def org_data_in_timeIntervals(skeleton_data, timeInterval_slice):
     #get all time data from the list dropping the decimal
-    content_time = map(lambda line: line[0,1].split('.')[0],skeleton_data) #
+    content_time = map(lambda line: datetime.strptime(line[0,1].split('.')[0],'%Y-%m-%d %H:%M:%S'),skeleton_data) #
     
 
     #date time library
 
-    init_t = datetime.strptime( content_time[0],'%Y-%m-%d %H:%M:%S') #+ ' ' + timeInterval_slice[3]
-    end_t = datetime.strptime(content_time[len(content_time)-1],'%Y-%m-%d %H:%M:%S')
-    x = datetime.strptime('0:0:0','%H:%M:%S')
-    tot_duration = (end_t-init_t)
+    init_t = content_time[0]#datetime.strptime( content_time[0],'%Y-%m-%d %H:%M:%S') #+ ' ' + timeInterval_slice[3]
+    end_t = content_time[len(content_time)-1]#datetime.strptime(content_time[len(content_time)-1],'%Y-%m-%d %H:%M:%S')
+    #x = datetime.strptime('0:0:0','%H:%M:%S')
+    #tot_duration = (end_t-init_t)
 
 
 
@@ -53,17 +53,20 @@ def org_data_in_timeIntervals(skeleton_data, timeInterval_slice):
     c = (end_t-my_time_slice)
     #print init_t,end_t
     #get data in every timeslices
+    starting_point=0
     while init_t < (end_t-my_time_slice):
         list_time_interval = []
         list_time_interval_append = list_time_interval.append
-
-        for t in xrange(len(content_time)):
-
-            if datetime.strptime(content_time[t],'%Y-%m-%d %H:%M:%S')>= init_t and datetime.strptime(content_time[t], '%Y-%m-%d %H:%M:%S') < init_t + my_time_slice:
+        t=starting_point
+        
+        for t in xrange(t,len(content_time)):
+            if (init_t + my_time_slice) > content_time[t] >= init_t :
                 list_time_interval_append(skeleton_data[t])
 
-            if datetime.strptime(content_time[t],'%Y-%m-%d %H:%M:%S') > init_t + my_time_slice:
+            if content_time[t] > init_t + my_time_slice:
+                starting_point = t+1
                 break
+        
         #print len(list_time_interval)
 
         ##save time interval without distinction of part of the day
@@ -575,14 +578,14 @@ def model_Freeze(nSteps, nVars, RNN, lrnRate, pDrop=0.5):
     model_out = x
 
 
-
+    
     model = Model(inputs=model_in, outputs=model_out)
-
+    
     model.compile(loss='binary_crossentropy',
                   optimizer=Nadam(lr=lrnRate),
                   sample_weight_mode='None')
-
-    model.summary(line_length=100)
+    
+    #model.summary(line_length=100)
 
 
     return model

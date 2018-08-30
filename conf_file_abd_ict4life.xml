@@ -8,8 +8,8 @@
 	</available_sensor>
 	
 	<ambientSensor_position>
-		<entrance>a51</entrance>
-		<toilet>a53</toilet>
+		<entrance>a99</entrance>
+		<toilet>a96</toilet>
 		<bedroom>a56</bedroom>
 	</ambientSensor_position>
 	

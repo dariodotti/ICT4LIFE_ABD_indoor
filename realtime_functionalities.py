@@ -258,9 +258,10 @@ def heart_rate_manager(d_all_MSband, timeStart, requestInterval, thrLower, thrUp
 
     for key in d_all_MSband.keys():
         d = d_all_MSband[key]
-
+        
         hr = []
         for i in range(len(d)):
+            print 'confidence band: ',d[i][9]
             if d[i][9] > 0: # hr confidence, if it less then 0, the band is guessing the values
                 hr.append(d[i][8])
 
@@ -447,7 +448,7 @@ def load_models(jointsOfInterest, fps):
     model_fall_down = kinect_features.load_model_weights(model_fall_down,
                                                      abs_folder_path+'BOW_trained_data/fall_sk_10.50.hdf5')
 
-    file_calibaration = abs_folder_path+'BOW_trained_data/day_care_center_paris.txt'
+    file_calibaration = abs_folder_path+'BOW_trained_data/paris_home_set_1_take2.txt'
 
     RT = np.genfromtxt(file_calibaration, delimiter=',')
     R = RT[0:3, :]

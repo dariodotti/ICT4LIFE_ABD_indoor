@@ -25,13 +25,15 @@ def daily_motion_training(db,avaliable_sensor, time_interval):
         ##get data from database
         kinect_joints = database.read_kinect_joints_from_db(db.Kinect,time_interval)
         #kinect_joints = kinect_joints[::-1]
+        bands_ids = database.get_bands_ID(db)
         
         if len(kinect_joints) <1:
             print '----- no data in time interval -----'
-            return 0
+            kinect_motion_amount_band = {b[0]: None for b in bands_ids}
+            for b in bands_ids: kinect_motion_amount_band[b[0]] = {'stationary': -1,'slow_mov': -1,'fast_mov': -1}
+            return kinect_motion_amount_band
 
-        #extract features from kinect from each user
-        bands_ids = database.get_bands_ID(db)
+        #extract features from kinect from each user     
         global_traj_features = kinect_features.feature_extraction_video_traj(kinect_joints, bands_ids, draw_joints_in_scene=0, realtime=0)
 
         kinect_motion_amount_band = {b[0]: None for b in bands_ids}
@@ -64,10 +66,7 @@ def daily_motion_training(db,avaliable_sensor, time_interval):
             else:
                 print 'no data from band: ', b[0]
                 kinect_motion_amount_band[b[0]] = {'stationary': -1,'slow_mov': -1,'fast_mov': -1}
-    else:
-        print '--------------- no data in the time interval ---------------------'
-        kinect_motion_amount = 0
-        #patient_ID = 0
+    
 
 
     if avaliable_sensor['zenith']:
@@ -81,41 +80,41 @@ def daily_motion_training(db,avaliable_sensor, time_interval):
     return kinect_motion_amount_band
 
 ##TODO UPDate this old method
-def daily_motion_test(db,avaliable_sensor):
-
-    time_interval = ['2016-12-07 13:00:00', '2016-12-07 14:00:00']
-
-    if avaliable_sensor['kinect']:
-
-        ##get data from database
-        kinect_joints = database.read_kinect_joints_from_db(db.Kinect,time_interval)
-
-        #extract features from kinect
-        hours = 0
-        minutes = 0
-        seconds = 25
-        time_slice_size = [hours, minutes, seconds]
-        global_traj_features = kinect_features.feature_extraction_video_traj(kinect_joints, time_slice_size)
-
-        #read model from database
-        model= database.get_classifier_model(filename='startPeriod_endPeriod')
-
-        #test classification
-        classifiers.logistic_regression_predict(global_traj_features[1])
-
-
-        ##visulaization daily motion
-        visualization.bar_plot_occupancy_selectedAreas_over_time(global_traj_features[0])
-        visualization.bar_plot_motion_over_time(global_traj_features[1])
-        visualization.pie_plot_motion_day(global_traj_features[1])
-
-    if avaliable_sensor['zenith']:
-        print 'add img processing zenith camera'
-        zenith_data = database.read_zenith_from_db(db.Zenith,time_interval)
-
-    if avaliable_sensor['UPMBand']:
-        print 'add upm band processing'
-        upmBand_data = database.read_UPMBand_from_db(db.UPMBand,time_interval)
+#def daily_motion_test(db,avaliable_sensor):
+#
+#    time_interval = ['2016-12-07 13:00:00', '2016-12-07 14:00:00']
+#
+#    if avaliable_sensor['kinect']:
+#
+#        ##get data from database
+#        kinect_joints = database.read_kinect_joints_from_db(db.Kinect,time_interval)
+#
+#        #extract features from kinect
+#        hours = 0
+#        minutes = 0
+#        seconds = 25
+#        time_slice_size = [hours, minutes, seconds]
+#        global_traj_features = kinect_features.feature_extraction_video_traj(kinect_joints, time_slice_size)
+#
+#        #read model from database
+#        model= database.get_classifier_model(filename='startPeriod_endPeriod')
+#
+#        #test classification
+#        classifiers.logistic_regression_predict(global_traj_features[1])
+#
+#
+#        ##visulaization daily motion
+#        visualization.bar_plot_occupancy_selectedAreas_over_time(global_traj_features[0])
+#        visualization.bar_plot_motion_over_time(global_traj_features[1])
+#        visualization.pie_plot_motion_day(global_traj_features[1])
+#
+#    if avaliable_sensor['zenith']:
+#        print 'add img processing zenith camera'
+#        zenith_data = database.read_zenith_from_db(db.Zenith,time_interval)
+#
+#    if avaliable_sensor['UPMBand']:
+#        print 'add upm band processing'
+#        upmBand_data = database.read_UPMBand_from_db(db.UPMBand,time_interval)
 
 
 def as_day_motion(db, avaliable_sensor,time_interval):
@@ -125,8 +124,11 @@ def as_day_motion(db, avaliable_sensor,time_interval):
 
 
     if avaliable_sensor['ambientSensor']:
-        ambient_sensor_data = database.read_ambient_sensor_from_db(db.Binary, time_interval)
-
+        #ambient_sensor_data = database.read_ambient_sensor_from_db_paris(db.Binary, time_interval)     
+        ### for pilots running alberto's code for binary sensor use this fnction and comment the one above ##
+        ambient_sensor_data = database.read_ambient_sensor_from_db_pilots(db.Binary, time_interval)
+        
+        
         ambient_sensor_activation = ambient_sensor.as_motion(ambient_sensor_data)
 
         #print ambient_sensor_activation
@@ -139,23 +141,23 @@ def as_day_motion(db, avaliable_sensor,time_interval):
     return ambient_sensor_activation
 
 
-def as_night_motion(db, avaliable_sensor):
-
-    ##get data in the selected time interval from database
-    time_interval = ['2017-07-11 13:18:00', '2017-07-11 13:18:30']
-
-
-    if avaliable_sensor['ambientSensor']:
-        ambient_sensor_data = database.read_ambient_sensor_from_db(db.Binary,time_interval)
-
-        ambient_sensor_activation = ambient_sensor.as_motion(ambient_sensor_data)
-
-        ##save the results according to table
-
-    if avaliable_sensor['UPMBand']:
-        upmBand_data = database.read_UPMBand_from_db(db.UPMBand,time_interval)
-
-    return ambient_sensor_activation
+#def as_night_motion(db, avaliable_sensor):
+#
+#    ##get data in the selected time interval from database
+#    time_interval = ['2017-07-11 13:18:00', '2017-07-11 13:18:30']
+#
+#
+#    if avaliable_sensor['ambientSensor']:
+#        ambient_sensor_data = database.read_ambient_sensor_from_db(db.Binary,time_interval)
+#
+#        ambient_sensor_activation = ambient_sensor.as_motion(ambient_sensor_data)
+#
+#        ##save the results according to table
+#
+#    if avaliable_sensor['UPMBand']:
+#        upmBand_data = database.read_UPMBand_from_db(db.UPMBand,time_interval)
+#
+#    return ambient_sensor_activation
 
 
 def abnormal_behavior_classification_training(db, avaliable_sensor):
@@ -248,7 +250,7 @@ def main_nonrealtime_functionalities():
 
     avaliable_sensor = conf_file.get_available_sensors()
     end_period = datetime.strptime(day_to_analyze, '%Y-%m-%d %H:%M:%S')
-    begin_period = end_period - timedelta(days=1)
+    begin_period = end_period - timedelta(days=1)#days=1
     
     print 'requested period: ', begin_period,end_period
     
@@ -258,9 +260,19 @@ def main_nonrealtime_functionalities():
     date2 = end_period.strftime('%Y-%m-%d %H:%M:%S').split(" ")
     f2 = date2[0].split("-")
     
-    #json_data = {"init_hour": "09:00:00", "init_date": "8-06-2018", "fin_hour": "11:00:00", "fin_date": "8-06-2018"}
+    print 're-id connecting to django from ip:' 
+    print os.environ['IP_ICT4LIFE']
+    my_ip = os.environ['IP_ICT4LIFE']
+    
+    ## if my_ip is wrong set it manually ##
+    #my_ip = '192.168.1.11'
+    
+    ##json_data = {"init_hour": "09:00:00", "init_date": "8-06-2018", "fin_hour": "11:00:00", "fin_date": "8-06-2018"}
     json_data = {"init_hour": date1[1], "init_date": f1[2]+"-"+f1[1]+"-"+f1[0], "fin_hour": date2[1], "fin_date": f2[2]+"-"+f2[1]+"-"+f2[0]}
-    r = requests.post("http://"+os.environ['IP_ICT4LIFE']+":8000/get_all_data/", json=json_data)
+    r = requests.post("http://"+my_ip+":8000/get_all_data/", json=json_data)
+#
+    print '------- re-id finished ----------'
+    
 
     #connect to the db
     db = database.connect_db('local')
@@ -270,18 +282,22 @@ def main_nonrealtime_functionalities():
 
     kinect_motion_amount = daily_motion_training(db,avaliable_sensor,time_interval)
     print("Motion amount")
+    
+    day_time_interval=[end_period.date().strftime('%Y-%m-%d')+' 06:00:00', end_period.date().strftime('%Y-%m-%d')+' 22:00:00']
+    day_motion_as_activation = as_day_motion(db, avaliable_sensor,day_time_interval)
+    print("AS Day Motion")
+    
+    night_time_interval=[begin_period.strftime('%Y-%m-%d %H:%M:%S'), end_period.date().strftime('%Y-%m-%d')+' 06:00:00']
+    night_motion_as_activation = as_day_motion(db, avaliable_sensor,night_time_interval)
+    print("AS Night Motion")
 
-    day_motion_as_activation = as_day_motion(db, avaliable_sensor,time_interval)
-    print("Day Motion")
-
-    #night_motion_as_activation = as_night_motion(db, avaliable_sensor)
-
+    
     #abnormal_behavior_classification_training(db, avaliable_sensor)
 
     #apathy()
 
-    freezing_analysis, festination_analysis = get_freezing_festination(db)
-    print("Freezing Festination")
+    #freezing_analysis, festination_analysis = get_freezing_festination(db)
+    #print("Freezing Festination")
 
     ##TODO: open the summarization file from the realtime activities and read the values for :
     ##loss_of_balance_analisys, fall_down_analysis, confusion_analysis
@@ -319,6 +335,13 @@ def main_nonrealtime_functionalities():
         if rt_events_summary[rID].has_key("HeartRateHigh"):
             jdata_hrH[rID] = rt_events_summary[rID]["HeartRateHigh"]
 
+    
+    bands_ids = database.get_bands_ID(db)
+    day_motion_activation_dict={bands_ids[0][0]:day_motion_as_activation}
+    night_motion_activation_dict={bands_ids[0][0]:night_motion_as_activation}
+    
+    
+    
     freezing_analysis = jdata
     festination_analysis = jdata
     loss_of_balance_analysis = jdata_lob
@@ -329,17 +352,17 @@ def main_nonrealtime_functionalities():
     lh_number = jdata
     lhc_number = jdata
     nr_visit = jdata
-    day_motion_as_activation = jdata
+    
     
     
 
     # @todo: summarize HBR, GSR in case of confusion
-    hr, gsr = database.summary_MSBand(db, [begin_period.strftime('%Y-%m-%d %H:%M:%S'), day_to_analyze])
+    hr, gsr, steps = database.summary_MSBand(db, [begin_period.strftime('%Y-%m-%d %H:%M:%S'), day_to_analyze])
     print("HR GSR")
     
     # Summarize steps
-    steps = database.summary_steps(db, [begin_period.strftime('%Y-%m-%d %H:%M:%S'), day_to_analyze], 1440)
-    print("Steps")
+    #steps = database.summary_steps(db, [begin_period.strftime('%Y-%m-%d %H:%M:%S'), day_to_analyze], 1440)
+    #print("Steps")
 
     ##if we want the total number of visit we take it from the day and night motion
     # as_motion_for_json = {key: [] for key in day_motion_as_activation.keys()}
@@ -354,9 +377,10 @@ def main_nonrealtime_functionalities():
     ##at the end of the day summarize and write all the results in a file that will be uploaded into amazon web services
     # Matching person band with uuid and send summarization for one patient
     database.write_summarization_nonrealtime_f_json(
+            day_to_analyze,
             kinect_motion_amount,
-            day_motion_as_activation,
-            day_motion_as_activation,
+            day_motion_activation_dict,
+            night_motion_activation_dict,
             freezing_analysis,
             festination_analysis,
             loss_of_balance_analysis,

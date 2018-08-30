@@ -16,7 +16,7 @@ from time import mktime as mktime
 import pandas as pd
 from datetime import datetime, timedelta
 from scipy.signal import butter, filtfilt
-
+import conf_file
 
 begin_period = ''
 end_period = ''
@@ -400,18 +400,54 @@ def read_kinect_joints_from_db(kinect_collection,time_interval):
     return joint_points
 
 
-def read_ambient_sensor_from_db(binary_collection,time_interval):
+def read_ambient_sensor_from_db_paris(binary_collection,time_interval):
 
-    begin_period = datetime.strptime(time_interval[0], '%Y-%m-%d %H:%M:%S')
-    end_period = datetime.strptime(time_interval[1], '%Y-%m-%d %H:%M:%S')
+    #begin_period = datetime.strptime(time_interval[0], '%Y-%m-%d %H:%M:%S')
+    #end_period = datetime.strptime(time_interval[1], '%Y-%m-%d %H:%M:%S')
+    sensor_pos = conf_file.get_ambient_sensor_position()
+    
+     #make dictionary with k the position and value the data
+    binary_data = {}
 
-    binary_data = []
-    for data in binary_collection.find({'_id':{'$lt': end_period, '$gte': begin_period}}):
+    #initialize dictionary
+    for k in sensor_pos.keys(): binary_data.setdefault(sensor_pos[k],[])
 
-        if begin_period <= data['_id'] <= end_period:
-            binary_data.append(data['Value'])
 
+    ## extract data from db
+    for data in binary_collection.find({'ts':{'$lt': time_interval[1], '$gte': time_interval[0]}}):
+        try:
+            binary_data[data['sensor_name'].encode('utf-8')].append([data['sensor_value'].encode('utf-8'),data['ts'].encode('utf-8')])
+        except:continue
+    
+    ## replace sensor id with sensor position
+    for k in sensor_pos.keys(): binary_data[k] = binary_data.pop(sensor_pos[k])
+    
+    #print(binary_data)
     return binary_data
+
+def read_ambient_sensor_from_db_pilots(binary_collection,time_interval):
+    
+    sensor_pos = conf_file.get_ambient_sensor_position()
+    
+    #make dictionary with k the position and value the data
+    binary_data = {}
+
+    #initialize dictionary
+    for k in sensor_pos.keys(): binary_data.setdefault(sensor_pos[k],[])
+
+
+    ## extract data from db
+    for data in binary_collection.find({'ts_server':{'$lt': time_interval[1], '$gte': time_interval[0]}}):
+        try:
+            binary_data[data['sensor_name'].encode('utf-8')].append([data['sensor_value'].encode('utf-8'),data['ts'].encode('utf-8')])
+        except:continue
+    
+    ## replace sensor id with sensor position
+    #for k in sensor_pos.keys(): binary_data[k] = binary_data.pop(sensor_pos[k])
+    
+    print(binary_data)
+    return binary_data
+    
 
 
 def read_zenith_from_db(zenith_collection,time_interval):
@@ -507,7 +543,7 @@ def read_data_from_db_tomas(collection, time_interval, session, exclude_columns=
                 collection.find({'_id': {'$gt': begin_period, '$lt': end_period},
                                  'Session': session}, projection=proj)
 
-
+ 
     return result
 
 
@@ -596,10 +632,10 @@ def read_MSBand_from_db_asDict(collection, time_interval, session):
     """
 
     frames = read_data_from_db_tomas(collection, time_interval, session)
-
+    
     all_data = dict()
     for n_frame, f in enumerate(frames):
-
+        #print n_frame 
         if all_data.has_key(f['SensorID']) == False:
             all_data[f['SensorID']] = []
 
@@ -609,33 +645,33 @@ def read_MSBand_from_db_asDict(collection, time_interval, session):
         meas['TS'] = f['_id']
         meas['id'] = f['SensorID']
 
-        meas['accX'] =  f['Acceleration']['X']
-        meas['accY'] =  f['Acceleration']['Y']
-        meas['accZ'] =  f['Acceleration']['Z']
-        meas['gyrX'] =  f['Gyroscope']['VelX']
-        meas['gyrY'] =  f['Gyroscope']['VelY']
-        meas['gyrZ'] =  f['Gyroscope']['VelZ']
-        meas['accTS'] = f['Acceleration']['Time']
-
-        meas['calToday'] = f['Calories']['Today']
-        meas['calTotal'] = f['Calories']['Total']
-        meas['calTS'] =    f['Calories']['Time']
-
-        meas['distPace'] =  f['Distance']['Pace']
-        meas['distSpeed'] = f['Distance']['Speed']
-        meas['dist'] =      f['Distance']['Today']
-        meas['distTS'] =    f['Distance']['Time']
+#        meas['accX'] =  f['Acceleration']['X']
+#        meas['accY'] =  f['Acceleration']['Y']
+#        meas['accZ'] =  f['Acceleration']['Z']
+#        meas['gyrX'] =  f['Gyroscope']['VelX']
+#        meas['gyrY'] =  f['Gyroscope']['VelY']
+#        meas['gyrZ'] =  f['Gyroscope']['VelZ']
+#        meas['accTS'] = f['Acceleration']['Time']
+#
+#        meas['calToday'] = f['Calories']['Today']
+#        meas['calTotal'] = f['Calories']['Total']
+#        meas['calTS'] =    f['Calories']['Time']
+#
+#        meas['distPace'] =  f['Distance']['Pace']
+#        meas['distSpeed'] = f['Distance']['Speed']
+#        meas['dist'] =      f['Distance']['Today']
+#        meas['distTS'] =    f['Distance']['Time']
 
         meas['hr'] =           f['HeartRate']['Value']
         meas['hrConfidence'] = f['HeartRate']['Confidence']
         meas['hrTS'] =         f['HeartRate']['Time']
 
-        meas['pedToday'] = f['Pedometer']['Today']
+        #meas['pedToday'] = f['Pedometer']['Today']
         meas['pedTotal'] = f['Pedometer']['Total']
         meas['pedTS'] =    f['Pedometer']['Time']
-
-        meas['temp'] =   f['SkinTemp']['Value']
-        meas['tempTS'] = f['SkinTemp']['Time']
+#
+#        meas['temp'] =   f['SkinTemp']['Value']
+#        meas['tempTS'] = f['SkinTemp']['Time']
 
         meas['gsr'] =   f['GSR']['Value']
         meas['gsrTS'] = f['GSR']['Time']
@@ -715,6 +751,7 @@ def butter_lowpass_filter(data, cutoff, fs, order=5):
     nyq = 0.5 * fs
     normal_cutoff = cutoff / nyq
     b, a = butter(order, normal_cutoff, btype='low', analog=False)
+    
     #y = lfilter(b, a, data)
     y = filtfilt(b, a, data)
     return y
@@ -894,83 +931,124 @@ def vel_estimator(peaks,troughs,r,timestamps):
 def steps_accelerometer_method(db, time_interval):
     print("Steps alternative method")
 
-    imuDataAcc = extract_one_sensor(db, time_interval)
-    peaks, troughs, accelDataFilter, timestamps = learning_count_jerks_pace(imuDataAcc)
-    vel, n_steps = vel_estimator(peaks,troughs,accelDataFilter,timestamps)
-    print(n_steps)
+    try:
+        imuDataAcc = extract_one_sensor(db, time_interval)
+        peaks, troughs, accelDataFilter, timestamps = learning_count_jerks_pace(imuDataAcc)
+        vel, n_steps = vel_estimator(peaks,troughs,accelDataFilter,timestamps)
+        print(n_steps)
+    except:
+        n_steps = 0
 
     return n_steps
+#
+#
+#def summary_steps(db, time_interval, step_interval_mins):
+#
+#    """
+#
+#    Summarize the steps taken during a specific time period
+#    every 'step_interval_mins' minutes
+#
+#
+#    """
+#
+#    colMSBand = db.MSBand
+#
+#    timeStart = time_interval[0]
+#    timeEnd = time_interval[1]
+#
+#    d_all = read_MSBand_from_db_asDict(collection=colMSBand,
+#                                       time_interval=[timeStart, timeEnd],
+#                                       session='')
+#
+#    out_steps = dict()
+#
+#    dbIDs = db.BandPersonIDs
+#    uuids = dbIDs.find()
+#    for key in uuids:
+#        key = key["SensorID"]
+#        try:
+#            d = d_all[key]
+#
+#            if key == '':
+#                print 'Discarding {0} measurements with invalid key \'{1}\''.format(len(d), key)
+#                continue
+#        except:
+#            d = []
+#
+#        steps = []
+#        c = 0
+#        timeStart = ''
+#        timeEnd   = ''
+#        stepsStart = 0
+#        stepsEnd   = 0
+#        while c < len(d):
+#
+#            if d[c]['pedTotal'] > 0:
+#
+#                if timeStart == '':
+#                    timeStart  = d[c]['pedTS']
+#                    stepsStart = d[c]['pedTotal']
+#                else:
+#                    timeEnd  = d[c]['pedTS']
+#                    stepsEnd = d[c]['pedTotal']
+#                    elapsed_mins = (timeEnd - timeStart).total_seconds() / 60.
+#                    if elapsed_mins >= step_interval_mins:
+#                        steps.append([int(elapsed_mins), int(stepsEnd) - int(stepsStart)])
+#                        timeStart = ''
+#                        timeEnd   = ''
+#                        stepsStart = 0
+#                        stepsEnd   = 0
+#
+#            c += 1
+#
+#        if len(steps) == 0:
+#            steps = steps_accelerometer_method(db, time_interval)
+#        else:
+#            steps = steps[0][1]
+#
+#        out_steps[key] = steps
+#
+#
+#    return out_steps
 
+def summary_steps(d, db, time_interval, step_interval_mins):
+    steps = []
+    c = 0
+    timeStart = ''
+    timeEnd   = ''
+    stepsStart = 0
+    stepsEnd   = 0
+    
+    while c < len(d):
 
-def summary_steps(db, time_interval, step_interval_mins):
+        if d[c]['pedTotal'] > 0:
 
-    """
+            if timeStart == '':
+                timeStart  = d[c]['pedTS']
+                stepsStart = d[c]['pedTotal']
+            else:
+                timeEnd  = d[c]['pedTS']
+                stepsEnd = d[c]['pedTotal']
+                elapsed_mins = (timeEnd - timeStart).total_seconds() / 60.
+                if elapsed_mins >= step_interval_mins:
+                    steps.append([int(elapsed_mins), int(stepsEnd) - int(stepsStart)])
+                    timeStart = ''
+                    timeEnd   = ''
+                    stepsStart = 0
+                    stepsEnd   = 0
 
-    Summarize the steps taken during a specific time period
-    every 'step_interval_mins' minutes
+        c += 1
 
+    if len(steps) == 0:
+        steps = steps_accelerometer_method(db, time_interval)
+    else:
+        steps = steps[0][1]
+        
+        
+        
+    return steps
 
-    """
-
-    colMSBand = db.MSBand
-
-    timeStart = time_interval[0]
-    timeEnd = time_interval[1]
-
-    d_all = read_MSBand_from_db_asDict(collection=colMSBand,
-                                       time_interval=[timeStart, timeEnd],
-                                       session='')
-
-    out_steps = dict()
-
-    dbIDs = db.BandPersonIDs
-    uuids = dbIDs.find()
-    for key in uuids:
-        key = key["SensorID"]
-        try:
-            d = d_all[key]
-
-            if key == '':
-                print 'Discarding {0} measurements with invalid key \'{1}\''.format(len(d), key)
-                continue
-        except:
-            d = []
-
-        steps = []
-        c = 0
-        timeStart = ''
-        timeEnd   = ''
-        stepsStart = 0
-        stepsEnd   = 0
-        while c < len(d):
-
-            if d[c]['pedTotal'] > 0:
-
-                if timeStart == '':
-                    timeStart  = d[c]['pedTS']
-                    stepsStart = d[c]['pedTotal']
-                else:
-                    timeEnd  = d[c]['pedTS']
-                    stepsEnd = d[c]['pedTotal']
-                    elapsed_mins = (timeEnd - timeStart).total_seconds() / 60.
-                    if elapsed_mins >= step_interval_mins:
-                        steps.append([int(elapsed_mins), int(stepsEnd) - int(stepsStart)])
-                        timeStart = ''
-                        timeEnd   = ''
-                        stepsStart = 0
-                        stepsEnd   = 0
-
-            c += 1
-
-        if len(steps) == 0:
-            steps = steps_accelerometer_method(db, time_interval)
-        else:
-            steps = steps[0][1]
-
-        out_steps[key] = steps
-
-
-    return out_steps
 
 
 def summary_MSBand(db, time_interval):
@@ -993,6 +1071,7 @@ def summary_MSBand(db, time_interval):
 
     out_hbr = dict()
     out_gsr = dict()
+    out_steps = dict()
     
     client = Connection('localhost', 27017)
     dbIDs = client['local']['BandPersonIDs']
@@ -1011,7 +1090,7 @@ def summary_MSBand(db, time_interval):
             hr = []
             gsr = []
             for i in range(len(d)):
-    
+
                 if d[i]['hr'] > 0 and d[i]['hrConfidence'] > 0: ## confidence, if it is smaller than 0 the band is guessing
                     hr.append(d[i]['hr'])
     
@@ -1082,13 +1161,20 @@ def summary_MSBand(db, time_interval):
 
         out_hbr[key] = result_hr
         out_gsr[key] = result_gsr
+        
+        ## summarizing steps ##
+        if len(d)>0:
+            steps = summary_steps(d, db, time_interval, 1440)
+            out_steps[key] = steps
+        else:
+            out_steps[key] =[]
 
 
-    return out_hbr, out_gsr
+    return out_hbr, out_gsr, out_steps
 
 
 #personMSBand = "MSFT Band UPM f6:65"
-def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_activation, night_motion_as_activation,freezing_analysis,festination_analysis,\
+def write_summarization_nonrealtime_f_json(day_to_analyze, kinect_motion_amount, day_motion_as_activation, night_motion_as_activation,freezing_analysis,festination_analysis,\
  loss_of_balance_analisys, fall_down_analysis, nr_visit, confusion_analysis, lh_number, lhc_number, heart_rate_low, heart_rate_high, gsr, hr, steps):
 
     path_to_lambda = "C:\\libs3\\"
@@ -1133,7 +1219,9 @@ def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_a
 #        if loss_of_balance_analisys[uuid_person["SensorID"]] == 0:
 #            loss_of_balance_analisys[uuid_person["SensorID"]] = []
 
-        final_sumarization = {'patientID': uuid_person["PersonID"],"date": time.strftime("%Y-%m-%d"),"daily_motion": kinect_motion_amount[uuid_person["SensorID"]], \
+        #time.strftime("%Y-%m-%d")
+        
+        final_sumarization = {'patientID': uuid_person["PersonID"],"date": day_to_analyze.split(' ')[0],"daily_motion": kinect_motion_amount[uuid_person["SensorID"]], \
         "as_day_motion": day_motion_as_activation[uuid_person["SensorID"]], "as_night_motion": night_motion_as_activation[uuid_person["SensorID"]], \
         "freezing": freezing_analysis[uuid_person["SensorID"]], "festination": festination_analysis[uuid_person["SensorID"]], \
         "loss_of_balance": loss_of_balance_analisys[uuid_person["SensorID"]], "fall_down": fall_down_analysis[uuid_person["SensorID"]], \
@@ -1142,7 +1230,7 @@ def write_summarization_nonrealtime_f_json(kinect_motion_amount, day_motion_as_a
         "heart_rate_low": heart_rate_low[uuid_person["SensorID"]], "heart_rate_high": heart_rate_high[uuid_person["SensorID"]],\
         "gsr": gsr[uuid_person["SensorID"]], "hr": hr[uuid_person["SensorID"]], "steps": steps[uuid_person["SensorID"]]}
 
-        date_in_title = time.strftime("%Y-%m-%d").split('-')
+        date_in_title = day_to_analyze.split(' ')[0].split('-')#time.strftime("%Y-%m-%d").split('-')
         filename_json = path_to_lambda + uuid_person["PersonID"] + '_' + date_in_title[0]+date_in_title[1]+date_in_title[2]+ '.json'
         #filename_json = path_to_lambda + uuid_person["PersonID"] + '_20180601.json'
         with open(filename_json, 'w') as outfile:
