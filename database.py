@@ -1097,6 +1097,7 @@ def summary_MSBand(db, time_interval):
                 if d[i]['gsr'] > 0 and d[i]['gsr'] < 1000000: ##  increase the threshold if too low
                     gsr.append(d[i]['gsr'])
         except:
+            d = []
             hr = []
             gsr = []
         
