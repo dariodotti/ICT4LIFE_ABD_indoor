@@ -15,6 +15,16 @@ PATH\nonrealtime_functionalities.py PATH\conf_file_abd_ict4life.xml "2018-03-02 
 In this example, the file will analyze the 24h before the selected date.
 
 
+UM Components
+daily_motion_training: 
+  Inputs: db -> database object
+          available_sensor -> variable created after that the conf_file is loaded
+          time_interval -> made by the beginning and end date we want to analyze
+  Function Flow:
+  read_kinect_joints_from_db -> connects to the db and extract all the data within the time_interval
+  feature_extraction_video_traj -> extract HOT features
+
+
 ####################
 
 realtime_functionalities.py
