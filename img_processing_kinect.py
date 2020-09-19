@@ -28,6 +28,18 @@ def get_slice_depth():
 
 
 def divide_image(my_room):
+	""""
+	Function that divide the image into regions. We use mplPath.Path because it allows to create polygon objects that facilitate the action of counting trajectory points
+	inside each polygon.
+	
+	---------------------
+	Parameters: my_room: image/or 3D matrix with dimension of recorded frames
+	------------
+	Output: list_poly: list of  mplPath.Path objects
+	
+	"""
+
+
     #How to draw polygons: 1 left bottom
                         # 2 left top
                         # 3 right top

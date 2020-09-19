@@ -342,8 +342,19 @@ def read_kinect_data_from_db(collection, time_interval, session, skeletonType, e
 
 
 def read_kinect_joints_from_db(kinect_collection,time_interval):
+	"""
+	extracts body joints information from MongoDB
+	-------------------------------
+	Parameters:
+	kinect collection: DB object pointing at the kinect collection
+	time_interval: time interval we want to analyze
+	-------------------
+	Output:
+	joint_points: list of frame_body_joints. It contains the joints 3D coordinates plus general info such as frameID, time stamp, and re-identification ID
+	"""
 
     global begin_period,end_period
+	## split the time interval into start and end 
     begin_period = datetime.strptime(time_interval[0], '%Y-%m-%d %H:%M:%S')
     end_period = datetime.strptime(time_interval[1], '%Y-%m-%d %H:%M:%S')
 
@@ -365,6 +376,7 @@ def read_kinect_joints_from_db(kinect_collection,time_interval):
                 
                 if body_frame['isTracked']:
                     
+					## contains the joints 3D coordinates plus general info such as frameID, time stamp, and re-identification ID
                     frame_body_joints = np.zeros((len(body_frame['skeleton']['rawGray'])+1,3),dtype='S30')
                     
                     #frameID

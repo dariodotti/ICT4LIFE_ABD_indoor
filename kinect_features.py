@@ -474,6 +474,8 @@ def feature_extraction_video_traj(skeleton_data, bands_ids, draw_joints_in_scene
                 ##reliability method
                 #measure_joints_accuracy(skeleton_data)
                 #print skeleton_data[0]
+				
+				## visualize skeleton frames ##
                 if draw_joints_in_scene: vis.draw_joints_and_tracks(skeleton_data_current_sk, list_poly, my_room)
             
                 ## split considered period is small time intervals

@@ -33,7 +33,7 @@ def daily_motion_training(db,avaliable_sensor, time_interval):
             for b in bands_ids: kinect_motion_amount_band[b[0]] = {'stationary': -1,'slow_mov': -1,'fast_mov': -1}
             return kinect_motion_amount_band
 
-        #extract features from kinect from each user     
+        #extract HOT features from kinect from each user     
         global_traj_features = kinect_features.feature_extraction_video_traj(kinect_joints, bands_ids, draw_joints_in_scene=0, realtime=0)
 
         kinect_motion_amount_band = {b[0]: None for b in bands_ids}
